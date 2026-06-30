@@ -14,7 +14,12 @@ Each project is self-contained. You can run `wt setup` for as many repos as you 
 brew install rejsiperpalaj/wt-setup/wt-setup
 ```
 
-Shell integration is added to `~/.zshrc` automatically. Open a new terminal and `wt` is ready.
+Then add shell integration to `~/.zshrc` (shown in the caveats after install):
+
+```sh
+echo 'source "/opt/homebrew/share/wt/shell-integration.zsh"' >> ~/.zshrc
+source ~/.zshrc
+```
 
 ---
 
@@ -87,6 +92,15 @@ Each gets its own `wt_<repo>/context/` — completely isolated, no shared state.
 
 ```sh
 brew upgrade wt-setup
+```
+
+---
+
+## Uninstall
+
+```sh
+brew uninstall wt-setup
+sed -i '' '/wt\/shell-integration\.zsh/d' ~/.zshrc
 ```
 
 ---
