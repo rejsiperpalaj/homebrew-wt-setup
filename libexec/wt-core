@@ -60,7 +60,7 @@ _wt_link_context() {
   local target_dir="$1"
   local context_dir="$2"
 
-  local items=(".cursor" "CLAUDE.md" "AGENTS.md")
+  local items=(".cursor" "ai" "CLAUDE.md" "AGENTS.md")
   local item src tgt cur
 
   for item in "${items[@]}"; do
@@ -121,7 +121,7 @@ _wt_seed_exclude() {
   mkdir -p "$(dirname "$exclude_file")"
   touch "$exclude_file"
   local entry
-  for entry in ".cursor" ".cursor/" "CLAUDE.md" "AGENTS.md" ".cursorrules" ".cursorignore" ".mcp.json" "mcp.json"; do
+  for entry in ".cursor" ".cursor/" "ai" "ai/" "CLAUDE.md" "AGENTS.md" ".cursorrules" ".cursorignore" ".mcp.json" "mcp.json"; do
     grep -qxF "$entry" "$exclude_file" 2>/dev/null || echo "$entry" >> "$exclude_file"
   done
 }
@@ -312,7 +312,7 @@ _wt_cmd_ai_status() {
   local main_repo wt_root project_name worktrees_root context_dir
   IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
 
-  local items=(".cursor" "CLAUDE.md" "AGENTS.md")
+  local items=(".cursor" "ai" "CLAUDE.md" "AGENTS.md")
 
   echo "Project:  $project_name"
   echo "Context:  $context_dir"

@@ -31,6 +31,10 @@ This creates:
 ~/Documents/workspace/
 └── wt_your-repo/
     ├── your-repo/                 ← git clone (main worktree)
+    │   ├── .cursor  →  ../context/.cursor      (symlink)
+    │   ├── ai       →  ../context/ai           (symlink)
+    │   ├── CLAUDE.md → ../context/CLAUDE.md   (symlink)
+    │   └── AGENTS.md → ../context/AGENTS.md   (symlink)
     ├── your-repo.worktrees/       ← feature branch worktrees land here
     └── context/                   ← shared AI docs (never committed)
         ├── .cursor/rules/project.mdc
@@ -44,7 +48,7 @@ This creates:
         └── AGENTS.md
 ```
 
-`.cursor`, `CLAUDE.md`, and `AGENTS.md` in the main repo (and every worktree you create) are symlinks into `context/`. Edit the docs once — every checkout sees the change instantly.
+Everything is symlinked into the main repo and every worktree. Edit any file from inside any checkout — changes are instantly visible everywhere.
 
 ---
 
