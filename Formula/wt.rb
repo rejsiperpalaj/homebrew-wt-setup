@@ -36,9 +36,7 @@ class Wt < Formula
   def caveats
     <<~EOS
       Shell integration was added to ~/.zshrc automatically.
-      Reload your shell to activate wt:
-
-        source ~/.zshrc
+      Open a new terminal and wt is ready.
 
       ── Get started ──────────────────────────────────────
         cd ~/your/workspace

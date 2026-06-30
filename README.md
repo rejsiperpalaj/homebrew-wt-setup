@@ -11,15 +11,10 @@ Each project is self-contained. You can run `wt setup` for as many repos as you 
 ## Install
 
 ```sh
-brew tap rejsiperpalaj/wt
 brew install --HEAD rejsiperpalaj/wt/wt
 ```
 
-The shell integration is added to `~/.zshrc` automatically. Reload your shell:
-
-```sh
-source ~/.zshrc
-```
+Shell integration is added to `~/.zshrc` automatically. Open a new terminal and `wt` is ready.
 
 ---
 
