@@ -91,8 +91,10 @@ Each gets its own `wt_<repo>/context/` — completely isolated, no shared state.
 ## Upgrading
 
 ```sh
-brew upgrade wt-setup
+brew update && brew upgrade wt-setup
 ```
+
+`brew update` is required to pull the latest formula before upgrading. Without it, Homebrew may report the current version is already installed even when a newer one is available.
 
 ---
 
