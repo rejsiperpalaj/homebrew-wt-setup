@@ -24,12 +24,28 @@ _wt_cd() {
   echo "__WTF_CD__:$1"
 }
 
-# Detect the current project from inside any worktree or the main repo.
+# Detect the current project from inside any worktree, the main repo,
+# or the wt_ workspace root directory.
 # Outputs: main_repo|wt_root|project_name|worktrees_root|context_dir
 _wt_detect_project() {
   local git_common_dir
-  git_common_dir=$(git rev-parse --git-common-dir 2>/dev/null) \
-    || _wt_die "not inside a git repository"
+  git_common_dir=$(git rev-parse --git-common-dir 2>/dev/null)
+
+  # Not in a git repo — check if we're standing at the wt_ workspace root.
+  # wt_<project>/ contains <project>/ (the git repo) and context/ alongside it.
+  if [[ -z "$git_common_dir" ]]; then
+    local cwd dirname project_name candidate
+    cwd=$(pwd)
+    dirname=$(basename "$cwd")
+    if [[ "$dirname" == wt_* ]]; then
+      project_name="${dirname#wt_}"
+      candidate="$cwd/$project_name"
+      if [[ -d "$candidate/.git" ]]; then
+        git_common_dir="$candidate/.git"
+      fi
+    fi
+    [[ -n "$git_common_dir" ]] || _wt_die "not inside a git repository"
+  fi
 
   # Resolve relative paths (.git from inside the main repo)
   if [[ "$git_common_dir" != /* ]]; then
