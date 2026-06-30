@@ -1,7 +1,7 @@
-class Wt < Formula
+class WtSetup < Formula
   desc "Git worktree manager with shared AI context — wt setup, wt <branch>, wt --ai-status"
-  homepage "https://github.com/rejsiperpalaj/homebrew-wt"
-  head "https://github.com/rejsiperpalaj/homebrew-wt.git", branch: "main"
+  homepage "https://github.com/rejsiperpalaj/homebrew-wt-setup"
+  head "https://github.com/rejsiperpalaj/homebrew-wt-setup.git", branch: "main"
 
   def install
     # Main script — callable as wt-core from the shell integration function

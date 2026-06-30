@@ -1,4 +1,4 @@
-# homebrew-wt
+# homebrew-wt-setup
 
 Homebrew tap for `wt` — a git worktree manager with shared AI context.
 
@@ -11,7 +11,7 @@ Each project is self-contained. You can run `wt setup` for as many repos as you 
 ## Install
 
 ```sh
-brew install --HEAD rejsiperpalaj/wt/wt
+brew install --HEAD rejsiperpalaj/wt-setup
 ```
 
 Shell integration is added to `~/.zshrc` automatically. Open a new terminal and `wt` is ready.
