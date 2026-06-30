@@ -35,6 +35,11 @@ class WtSetup < Formula
 
       Each project gets its own isolated workspace. Repeat
       wt setup for every repo you want to manage this way.
+
+      ── To uninstall completely ───────────────────────────
+        brew uninstall wt-setup
+        sed -i '' '/wt\/shell-integration\.zsh/d' ~/.zshrc
+      ─────────────────────────────────────────────────────
     EOS
   end
 end
