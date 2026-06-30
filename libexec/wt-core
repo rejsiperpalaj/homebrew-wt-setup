@@ -1,0 +1,448 @@
+#!/usr/bin/env bash
+# wt-core — git worktree + AI context manager
+# Installed by homebrew tap rejsiperpalaj/wt. Invoked via the wt() shell function.
+set -euo pipefail
+
+WTF_PREFIX="${HOMEBREW_PREFIX:-$(brew --prefix 2>/dev/null || echo /usr/local)}"
+WTF_TEMPLATES_DIR="${WTF_PREFIX}/share/wt/templates"
+
+# ============================================================
+# Helpers
+# ============================================================
+
+_wt_die() {
+  echo "wt: error: $*" >&2
+  exit 1
+}
+
+_wt_warn() {
+  echo "wt: warning: $*" >&2
+}
+
+# Emit a cd target — intercepted and stripped by shell-integration.zsh.
+_wt_cd() {
+  echo "__WTF_CD__:$1"
+}
+
+# Detect the current project from inside any worktree or the main repo.
+# Outputs: main_repo|wt_root|project_name|worktrees_root|context_dir
+_wt_detect_project() {
+  local git_common_dir
+  git_common_dir=$(git rev-parse --git-common-dir 2>/dev/null) \
+    || _wt_die "not inside a git repository"
+
+  # Resolve relative paths (.git from inside the main repo)
+  if [[ "$git_common_dir" != /* ]]; then
+    git_common_dir="$(git rev-parse --show-toplevel)/$git_common_dir"
+  fi
+
+  local main_repo
+  main_repo=$(cd "$git_common_dir/.." && pwd)
+
+  local wt_root
+  wt_root=$(dirname "$main_repo")
+
+  local project_name
+  project_name=$(basename "$main_repo")
+
+  local worktrees_root="${main_repo}.worktrees"
+  local context_dir="${wt_root}/context"
+
+  if [[ ! -d "$context_dir" ]]; then
+    _wt_die "context/ not found at $context_dir — is this project set up with 'wt setup'?"
+  fi
+
+  printf '%s' "${main_repo}|${wt_root}|${project_name}|${worktrees_root}|${context_dir}"
+}
+
+# Create symlinks for .cursor, CLAUDE.md, and AGENTS.md from context/ into a checkout.
+_wt_link_context() {
+  local target_dir="$1"
+  local context_dir="$2"
+
+  local items=(".cursor" "CLAUDE.md" "AGENTS.md")
+  local item src tgt cur
+
+  for item in "${items[@]}"; do
+    src="${context_dir}/${item}"
+    tgt="${target_dir}/${item}"
+
+    if [[ ! -e "$src" ]]; then
+      _wt_warn "source missing: $src — skipping"
+      continue
+    fi
+
+    if [[ -L "$tgt" ]]; then
+      cur=$(readlink "$tgt")
+      if [[ "$cur" == "$src" ]]; then
+        printf '  %-9s %s\n' "OK" "$tgt"
+        continue
+      else
+        _wt_warn "$tgt → $cur (expected $src) — not replacing"
+        continue
+      fi
+    fi
+
+    if [[ -e "$tgt" ]]; then
+      _wt_warn "$tgt exists and is not a symlink — skipping (inspect manually)"
+      continue
+    fi
+
+    ln -s "$src" "$tgt" && printf '  %-9s %s\n' "LINKED" "$tgt"
+  done
+}
+
+# Print status (OK / MISSING / CONFLICT / MISMATCH) for a single symlink target.
+_wt_check_one() {
+  local tgt="$1"
+  local src="$2"
+
+  if [[ -L "$tgt" ]]; then
+    local cur
+    cur=$(readlink "$tgt")
+    if [[ "$cur" == "$src" ]]; then
+      printf '    %-10s %s\n' "OK" "$(basename "$tgt")"
+    else
+      printf '    %-10s %s\n              → %s\n              expected: %s\n' \
+        "MISMATCH" "$(basename "$tgt")" "$cur" "$src"
+    fi
+  elif [[ -e "$tgt" ]]; then
+    printf '    %-10s %s  (exists, not a symlink — inspect manually)\n' "CONFLICT" "$(basename "$tgt")"
+  else
+    printf '    %-10s %s\n' "MISSING" "$(basename "$tgt")"
+  fi
+}
+
+# Seed .git/info/exclude so AI artifacts never appear in git status.
+# Shared across all worktrees of the same repo automatically.
+_wt_seed_exclude() {
+  local repo_dir="$1"
+  local exclude_file="${repo_dir}/.git/info/exclude"
+  mkdir -p "$(dirname "$exclude_file")"
+  touch "$exclude_file"
+  local entry
+  for entry in ".cursor" ".cursor/" "CLAUDE.md" "AGENTS.md" ".cursorrules" ".cursorignore" ".mcp.json" "mcp.json"; do
+    grep -qxF "$entry" "$exclude_file" 2>/dev/null || echo "$entry" >> "$exclude_file"
+  done
+}
+
+# Copy templates into a new context/ directory, substituting {{PROJECT_NAME}}.
+_wt_seed_templates() {
+  local dest_dir="$1"
+  local project_name="$2"
+  local src_dir="${WTF_TEMPLATES_DIR}/context"
+
+  [[ -d "$src_dir" ]] || _wt_die "templates not found at $src_dir — try: brew reinstall --HEAD wt"
+
+  cp -r "$src_dir" "$dest_dir"
+
+  # Replace {{PROJECT_NAME}} in all files (BSD sed on macOS requires '' after -i)
+  find "$dest_dir" -type f | while IFS= read -r f; do
+    sed -i '' "s/{{PROJECT_NAME}}/$project_name/g" "$f"
+  done
+}
+
+# ============================================================
+# Commands
+# ============================================================
+
+_wt_cmd_setup() {
+  local git_url="${1:-}"
+  [[ -n "$git_url" ]] || _wt_die "usage: wt setup <git-url>"
+
+  # Parse project name: strip trailing .git, take basename
+  # Works for both git@ and https:// URLs
+  local project_name
+  project_name=$(basename "$git_url" .git)
+
+  local wt_root="${PWD}/wt_${project_name}"
+  local main_repo="${wt_root}/${project_name}"
+  local worktrees_root="${main_repo}.worktrees"
+  local context_dir="${wt_root}/context"
+
+  if [[ -e "$wt_root" ]]; then
+    _wt_die "$wt_root already exists — remove it first or run from a different directory"
+  fi
+
+  echo "Setting up wt workspace: wt_${project_name}"
+  echo ""
+
+  # 1. Create workspace root
+  mkdir -p "$wt_root"
+
+  # 2. Seed context/ from templates
+  echo "→ Creating shared context..."
+  _wt_seed_templates "$context_dir" "$project_name"
+  echo "  context/ ready at $context_dir"
+  echo ""
+
+  # 3. Clone repository
+  echo "→ Cloning $git_url..."
+  git clone "$git_url" "$main_repo"
+  echo ""
+
+  # 4. Create worktrees directory (empty to start)
+  mkdir -p "$worktrees_root"
+
+  # 5. Seed .git/info/exclude (hides AI artifacts from git status)
+  _wt_seed_exclude "$main_repo"
+
+  # 6. Symlink AI context into the main repo
+  echo "→ Linking AI context into main repo..."
+  _wt_link_context "$main_repo" "$context_dir"
+  echo ""
+
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "  Done! Workspace ready."
+  echo ""
+  echo "  Root:       $wt_root"
+  echo "  Repository: $main_repo"
+  echo "  Worktrees:  $worktrees_root"
+  echo "  Context:    $context_dir"
+  echo ""
+  echo "  Next steps:"
+  echo "    Edit AI docs:        cursor $context_dir"
+  echo "    Create a branch:     wt TICKET-123-my-feature"
+  echo "    Check AI symlinks:   wt --ai-status"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+
+  _wt_cd "$main_repo"
+}
+
+_wt_cmd_branch() {
+  local branch="${1:-}"
+  [[ -n "$branch" ]] || _wt_die "usage: wt <branch> [--from <base>] [--checkout]"
+  shift
+
+  local base="develop"
+  local checkout_existing=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --from)
+        [[ -n "${2:-}" ]] || _wt_die "--from requires a value"
+        base="$2"; shift 2
+        ;;
+      --checkout)
+        checkout_existing=1; shift
+        ;;
+      *)
+        _wt_die "unknown argument: $1"
+        ;;
+    esac
+  done
+
+  local project_info
+  project_info=$(_wt_detect_project)
+
+  local main_repo wt_root project_name worktrees_root context_dir
+  IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
+
+  # Sanitize branch name for use as a directory name
+  local sanitized="${branch//\//-}"
+  local wt_path="${worktrees_root}/${sanitized}"
+
+  if [[ -e "$wt_path" ]]; then
+    _wt_die "$wt_path already exists"
+  fi
+
+  mkdir -p "$worktrees_root"
+
+  echo "Fetching origin..."
+  git -C "$main_repo" fetch --prune origin || _wt_die "fetch failed"
+
+  if [[ "$checkout_existing" == "1" ]]; then
+    if git -C "$main_repo" show-ref --verify --quiet "refs/heads/$branch"; then
+      git -C "$main_repo" worktree add "$wt_path" "$branch"
+    elif git -C "$main_repo" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+      git -C "$main_repo" worktree add --track -b "$branch" "$wt_path" "origin/$branch"
+    else
+      _wt_die "no local or origin branch named '$branch'"
+    fi
+  else
+    if git -C "$main_repo" show-ref --verify --quiet "refs/heads/$branch"; then
+      _wt_die "branch '$branch' already exists locally — use --checkout to reuse it"
+    fi
+    if ! git -C "$main_repo" show-ref --verify --quiet "refs/remotes/origin/$base"; then
+      _wt_die "origin/$base not found after fetch — use --from <base> to specify a different base"
+    fi
+    git -C "$main_repo" worktree add -b "$branch" "$wt_path" "origin/$base"
+  fi
+
+  echo ""
+  echo "→ Linking AI context..."
+  _wt_link_context "$wt_path" "$context_dir"
+  echo ""
+  echo "Worktree ready:"
+  echo "  Path:   $wt_path"
+  echo "  Branch: $branch  (base: origin/$base)"
+  echo "  HEAD:   $(git -C "$wt_path" rev-parse --short HEAD)"
+  echo ""
+
+  _wt_cd "$wt_path"
+}
+
+_wt_cmd_list() {
+  local project_info
+  project_info=$(_wt_detect_project)
+  local main_repo wt_root project_name worktrees_root context_dir
+  IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
+
+  echo "Project: $project_name"
+  echo ""
+  git -C "$main_repo" worktree list
+}
+
+_wt_cmd_prune() {
+  local project_info
+  project_info=$(_wt_detect_project)
+  local main_repo wt_root project_name worktrees_root context_dir
+  IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
+
+  echo "Pruning stale worktree metadata..."
+  git -C "$main_repo" worktree prune -v
+  echo ""
+  git -C "$main_repo" worktree list
+}
+
+_wt_cmd_ai_status() {
+  local project_info
+  project_info=$(_wt_detect_project)
+  local main_repo wt_root project_name worktrees_root context_dir
+  IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
+
+  local items=(".cursor" "CLAUDE.md" "AGENTS.md")
+
+  echo "Project:  $project_name"
+  echo "Context:  $context_dir"
+  echo ""
+
+  echo "Main repo: $main_repo"
+  local item
+  for item in "${items[@]}"; do
+    _wt_check_one "${main_repo}/${item}" "${context_dir}/${item}"
+  done
+  echo ""
+
+  echo "Worktrees:"
+  local found=0 wt_path
+  while IFS= read -r wt_path; do
+    [[ "$wt_path" == "$main_repo" ]] && continue
+    found=1
+    echo "  $wt_path"
+    for item in "${items[@]}"; do
+      _wt_check_one "${wt_path}/${item}" "${context_dir}/${item}"
+    done
+  done < <(git -C "$main_repo" worktree list --porcelain | awk '/^worktree / {print substr($0, 10)}')
+
+  if [[ "$found" == "0" ]]; then
+    echo "  (none)"
+  fi
+  echo ""
+  echo "Fix MISSING:  run 'wt --ai-fix' from inside the affected worktree"
+}
+
+_wt_cmd_ai_fix() {
+  local project_info
+  project_info=$(_wt_detect_project)
+  local main_repo wt_root project_name worktrees_root context_dir
+  IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
+
+  local current_dir
+  current_dir=$(pwd)
+
+  echo "Linking AI context in: $current_dir"
+  _wt_link_context "$current_dir" "$context_dir"
+}
+
+_wt_cmd_ai_edit() {
+  local project_info
+  project_info=$(_wt_detect_project)
+  local main_repo wt_root project_name worktrees_root context_dir
+  IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
+
+  if command -v cursor &>/dev/null; then
+    cursor "$context_dir"
+  else
+    echo "Open your shared context in your editor:"
+    echo "  $context_dir"
+  fi
+}
+
+_wt_cmd_help() {
+  cat <<'EOF'
+wt — git worktree + AI context manager
+
+SETUP (run once per project, from your workspace directory)
+  wt setup <git-url>              Bootstrap a new project workspace
+
+BRANCHING (run from inside the project or any of its worktrees)
+  wt <branch>                     New branch off origin/develop, cd into it
+  wt <branch> --from <base>       New branch off origin/<base>
+  wt <branch> --checkout          Check out existing local or remote branch
+
+MANAGEMENT
+  wt --list                       List all worktrees for this project
+  wt --prune                      Prune stale worktree metadata
+
+AI CONTEXT
+  wt --ai-status                  Symlink health check across all worktrees
+  wt --ai-fix                     Re-link AI context in the current directory
+  wt --ai-edit                    Open shared context/ in Cursor
+
+  wt --help                       Show this message
+
+EXAMPLES
+  cd ~/workspace
+  wt setup git@github.com:myorg/myapp.git   # bootstrap
+  wt TICKET-42-new-feature                  # new branch
+  wt TICKET-42-new-feature --checkout       # check out existing
+  wt --ai-status                            # health check
+EOF
+}
+
+# ============================================================
+# Main
+# ============================================================
+
+main() {
+  case "${1:-}" in
+    setup)
+      shift
+      _wt_cmd_setup "$@"
+      ;;
+    --list)
+      _wt_cmd_list
+      ;;
+    --prune)
+      _wt_cmd_prune
+      ;;
+    --ai-status)
+      _wt_cmd_ai_status
+      ;;
+    --ai-fix)
+      _wt_cmd_ai_fix
+      ;;
+    --ai-edit)
+      _wt_cmd_ai_edit
+      ;;
+    --help|-h)
+      _wt_cmd_help
+      ;;
+    "")
+      _wt_cmd_help
+      ;;
+    --*)
+      echo "wt: unknown flag: $1" >&2
+      echo "" >&2
+      _wt_cmd_help >&2
+      exit 2
+      ;;
+    *)
+      _wt_cmd_branch "$@"
+      ;;
+  esac
+}
+
+main "$@"

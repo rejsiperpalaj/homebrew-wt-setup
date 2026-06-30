@@ -1,0 +1,27 @@
+# Coding Standards — {{PROJECT_NAME}}
+
+> Document team conventions here so AI tools generate code that matches the codebase from the start.
+
+## Naming conventions
+
+_Describe naming rules for files, classes, functions, and variables._
+
+## Code style
+
+_Describe formatting rules. Reference linter / formatter config files if applicable._
+
+## Patterns to follow
+
+_List approved patterns with brief examples (e.g. dependency injection approach, error handling style)._
+
+## Patterns to avoid
+
+_List anti-patterns or deprecated approaches that should not appear in new code._
+
+## Error handling
+
+_Describe how errors and failures should be handled and surfaced._
+
+## Comments and documentation
+
+_Describe when to add comments, what to document, and what to leave out._

@@ -1,0 +1,27 @@
+# Architecture — {{PROJECT_NAME}}
+
+> Describe the high-level system design here so AI tools understand the structure before suggesting changes.
+
+## Overview
+
+_Describe the architectural style (e.g. MVVM-C, Clean Architecture, microservices, monolith)._
+
+## Directory / module structure
+
+_Map each top-level directory or package to its responsibility._
+
+## Key components
+
+_Describe the major modules, services, layers, or subsystems and how they relate._
+
+## Data flow
+
+_Describe how data moves through the system from input to output._
+
+## External dependencies
+
+_List external services, APIs, or libraries and what they are used for._
+
+## Design decisions
+
+_Document significant architectural decisions and the reasoning behind them._

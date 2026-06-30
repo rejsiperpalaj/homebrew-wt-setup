@@ -1,0 +1,18 @@
+---
+description: Project-specific AI rules for {{PROJECT_NAME}}
+alwaysApply: true
+---
+
+# {{PROJECT_NAME}} — AI Context
+
+Before answering questions or writing code, read the shared documentation:
+
+- `ai/README.md` — project overview, tech stack, key concepts
+- `ai/architecture.md` — system design and component map
+- `ai/coding-standards.md` — team conventions, patterns to use and avoid
+- `ai/testing.md` — testing approach and patterns
+- `ai/workflows.md` — git branching, PR process, worktree usage
+
+These files live in `context/` at the workspace root and are shared across
+the main repo and all worktrees via symlinks. Edit them there — changes
+are immediately visible everywhere.
