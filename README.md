@@ -11,7 +11,7 @@ Each project is self-contained. You can run `wt setup` for as many repos as you 
 ## Install
 
 ```sh
-brew install --HEAD rejsiperpalaj/wt-setup
+brew install rejsiperpalaj/wt-setup/wt-setup
 ```
 
 Shell integration is added to `~/.zshrc` automatically. Open a new terminal and `wt` is ready.
@@ -86,7 +86,7 @@ Each gets its own `wt_<repo>/context/` — completely isolated, no shared state.
 ## Upgrading
 
 ```sh
-brew reinstall --HEAD wt
+brew upgrade wt-setup
 ```
 
 ---
