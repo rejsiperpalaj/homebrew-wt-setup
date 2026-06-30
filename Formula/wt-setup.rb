@@ -19,20 +19,19 @@ class WtSetup < Formula
   end
 
   def post_install
-    zshrc = File.expand_path("~/.zshrc")
+    zshrc = File.join(ENV["HOME"], ".zshrc")
     marker = "share/wt/shell-integration.zsh"
     line   = "source \"#{HOMEBREW_PREFIX}/share/wt/shell-integration.zsh\""
 
     unless File.exist?(zshrc) && File.read(zshrc).include?(marker)
       File.open(zshrc, "a") do |f|
         f.puts ""
-        f.puts "# wt — git worktree + AI context manager (added by brew install wt)"
+        f.puts "# wt — git worktree + AI context manager (added by brew install wt-setup)"
         f.puts line
       end
-      puts "  → Added shell integration to ~/.zshrc"
-      puts "    Run: source ~/.zshrc"
+      puts "  → Added shell integration to ~/.zshrc — open a new terminal to activate wt"
     else
-      puts "  → Shell integration already present in ~/.zshrc — skipping"
+      puts "  → Shell integration already in ~/.zshrc — skipping"
     end
   end
 
