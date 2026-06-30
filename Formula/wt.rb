@@ -15,13 +15,28 @@ class Wt < Formula
     cp_r "share/wt/templates", share/"wt"
   end
 
+  def post_install
+    zshrc = File.expand_path("~/.zshrc")
+    marker = "share/wt/shell-integration.zsh"
+    line   = "source \"#{HOMEBREW_PREFIX}/share/wt/shell-integration.zsh\""
+
+    unless File.exist?(zshrc) && File.read(zshrc).include?(marker)
+      File.open(zshrc, "a") do |f|
+        f.puts ""
+        f.puts "# wt — git worktree + AI context manager (added by brew install wt)"
+        f.puts line
+      end
+      puts "  → Added shell integration to ~/.zshrc"
+      puts "    Run: source ~/.zshrc"
+    else
+      puts "  → Shell integration already present in ~/.zshrc — skipping"
+    end
+  end
+
   def caveats
     <<~EOS
-      Add wt to your shell by appending this line to ~/.zshrc:
-
-        source "#{HOMEBREW_PREFIX}/share/wt/shell-integration.zsh"
-
-      Then reload your shell:
+      Shell integration was added to ~/.zshrc automatically.
+      Reload your shell to activate wt:
 
         source ~/.zshrc
 

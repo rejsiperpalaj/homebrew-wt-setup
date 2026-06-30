@@ -15,13 +15,7 @@ brew tap rejsiperpalaj/wt
 brew install --HEAD rejsiperpalaj/wt/wt
 ```
 
-Then follow the printed instructions to add the shell integration to `~/.zshrc`:
-
-```sh
-source "$(brew --prefix)/share/wt/shell-integration.zsh"
-```
-
-Reload your shell:
+The shell integration is added to `~/.zshrc` automatically. Reload your shell:
 
 ```sh
 source ~/.zshrc
