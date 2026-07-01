@@ -177,24 +177,53 @@ This handles:
 
 ## AI tools — why CLAUDE.md, AGENTS.md, and .cursor
 
-`ai/` is the single source of truth. Everything lives there. `CLAUDE.md`, `AGENTS.md`, and `.cursor/` are thin bridges that point each tool at `ai/`.
+`ai/` is the single source of truth. All three tools read `ai/rules/` and `ai/skills/` — they just reach them through different mechanisms:
 
+- **Cursor** — path convention. It automatically scans `.cursor/rules/` and `.cursor/skills/` on startup. Those directories are symlinked to `ai/rules/` and `ai/skills/`, so Cursor picks everything up with no extra instruction.
+- **Claude Code** — instruction-based. It reads `CLAUDE.md` first, which explicitly indexes `ai/rules/` and `ai/skills/`. Claude follows those references.
+- **Codex** — same pattern via `AGENTS.md`.
+
+The mechanism differs, but the destination is the same: `ai/rules/` and `ai/skills/`.
+
+```mermaid
+flowchart LR
+    subgraph source [Single source of truth]
+        rules["ai/rules/\n(.mdc files)"]
+        skills["ai/skills/\n(SKILL.md files)"]
+        docs["ai/*.md\n(architecture, testing, workflows)"]
+    end
+
+    subgraph bridges [Bridges]
+        cursor_rules[".cursor/rules\n(symlink)"]
+        cursor_skills[".cursor/skills\n(symlink)"]
+        claude["CLAUDE.md\n(index file)"]
+        agents["AGENTS.md\n(index file)"]
+    end
+
+    cursor_rules --> rules
+    cursor_skills --> skills
+    claude --> rules
+    claude --> skills
+    claude --> docs
+    agents --> rules
+    agents --> skills
+    agents --> docs
+
+    Cursor -->|"auto-scans"| cursor_rules
+    Cursor -->|"auto-scans"| cursor_skills
+    ClaudeCode -->|"reads index"| claude
+    Codex -->|"reads index"| agents
 ```
-ai/rules/    ←── .cursor/rules  (symlink — Cursor reads .mdc files here)
-ai/skills/   ←── .cursor/skills (symlink — Cursor reads SKILL.md files here)
-ai/          ←── CLAUDE.md      (bridge — "read ai/ for full context")
-ai/          ←── AGENTS.md      (bridge — "read ai/ for full context")
-```
 
-| File / folder | Read by | Role |
-|---|---|---|
-| `ai/rules/` | Cursor IDE (via `.cursor/rules` symlink) | `.mdc` rule files — enforced automatically during coding |
-| `ai/skills/` | Cursor IDE (via `.cursor/skills` symlink) | Reusable task templates the agent can invoke |
-| `ai/*.md` | Any tool, by reference | Architecture, coding standards, testing, workflows |
-| `CLAUDE.md` | Claude Code (Anthropic CLI) | Bridge — directs Claude to read `ai/` |
-| `AGENTS.md` | OpenAI Codex, GPT-based agents | Bridge — directs Codex to read `ai/` |
+| File / folder | Read by | Mechanism | Role |
+|---|---|---|---|
+| `ai/rules/` | Cursor, Claude Code, Codex | Cursor: `.cursor/rules` symlink — Claude/Codex: bridge file index | `.mdc` rule files enforced during coding |
+| `ai/skills/` | Cursor, Claude Code, Codex | Cursor: `.cursor/skills` symlink — Claude/Codex: bridge file index | Reusable task templates |
+| `ai/*.md` | Cursor, Claude Code, Codex | Bridge file index | Architecture, coding standards, testing, workflows |
+| `CLAUDE.md` | Claude Code | Auto-read by Claude on startup | Index — directs Claude to `ai/rules/`, `ai/skills/`, `ai/*.md` |
+| `AGENTS.md` | Codex, GPT-based agents | Auto-read by Codex on startup | Index — directs Codex to `ai/rules/`, `ai/skills/`, `ai/*.md` |
 
-You edit rules in `ai/rules/`, skills in `ai/skills/`, docs in `ai/`. One place, all tools pick it up instantly across every worktree.
+Edit in `ai/`. One place, all tools, all worktrees, all branches.
 
 ---
 
@@ -355,7 +384,7 @@ This way:
 - Personal customizations that shouldn't be shared can be added to `context/` and listed in `context/.git/info/exclude` so they stay local-only.
 - New team members get the full AI setup with two commands: `wt setup` + `git clone` into `context/`.
 
-> **Note:** After replacing `context/` with the team repo, re-run `wt --set-default <branch>` to restore the stored default branch. The config lives at `wt_<project>/.wt-config` (outside `context/`), so it is never overwritten by a team repo clone.
+> **Note:** After replacing `context/` with the team repo, re-run `wt --set-default <branch>` to restore the stored default branch. The setting is stored in the repo's `.git/config` (not inside `context/`), so it is never overwritten by a team repo clone.
 
 ---
 
