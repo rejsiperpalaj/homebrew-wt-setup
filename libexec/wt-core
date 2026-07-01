@@ -588,6 +588,13 @@ _wt_cmd_ai_absorb() {
   ln -s "$abs_dest" "$abs_source"
   echo "  Replaced with symlink → $abs_dest"
   echo ""
+
+  # Link the standard context items (ai, .cursor, CLAUDE.md, AGENTS.md) into the
+  # main repo root so tools find them at the expected paths (e.g. ai/ not docs/ai/).
+  echo "→ Linking standard AI context into repo root..."
+  _wt_link_context "$main_repo" "$context_dir"
+  echo ""
+
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "  Done. ${source_path} now points to shared context/."
   echo ""
