@@ -430,6 +430,67 @@ _wt_cmd_ai_fix() {
   fi
 }
 
+_wt_cmd_ai_absorb() {
+  local source_path="${1:-}"
+  [[ -n "$source_path" ]] || _wt_die "usage: wt --ai-absorb <path>"
+
+  local project_info
+  project_info=$(_wt_detect_project)
+  local main_repo wt_root project_name worktrees_root context_dir
+  IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
+
+  # Resolve source relative to the repo root
+  local abs_source
+  if [[ "$source_path" == /* ]]; then
+    abs_source="$source_path"
+  else
+    abs_source="${main_repo}/${source_path}"
+  fi
+
+  [[ -e "$abs_source" ]] || _wt_die "path not found: $abs_source"
+  [[ -L "$abs_source" ]] && _wt_die "$abs_source is already a symlink — nothing to absorb"
+
+  # Destination inside context/ uses the basename of the source path
+  local dest_name
+  dest_name=$(basename "$abs_source")
+  local abs_dest="${context_dir}/${dest_name}"
+
+  echo "Absorbing: $abs_source"
+  echo "  → context/${dest_name}"
+  echo ""
+
+  # Copy into context/ (merge if destination already exists)
+  if [[ -d "$abs_source" ]]; then
+    mkdir -p "$abs_dest"
+    cp -rn "$abs_source/." "$abs_dest/"
+    echo "  Copied directory contents into context/${dest_name}/"
+  else
+    if [[ -f "$abs_dest" ]]; then
+      {
+        echo ""
+        echo "# ── Absorbed from ${source_path} on $(date '+%Y-%m-%d') ──"
+        cat "$abs_source"
+      } >> "$abs_dest"
+      echo "  Appended file content into context/${dest_name}"
+    else
+      cp "$abs_source" "$abs_dest"
+      echo "  Copied file into context/${dest_name}"
+    fi
+  fi
+
+  # Remove original and replace with symlink
+  rm -rf "$abs_source"
+  ln -s "$abs_dest" "$abs_source"
+  echo "  Replaced with symlink → $abs_dest"
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "  Done. ${source_path} now points to shared context/."
+  echo ""
+  echo "  Commit this change to share the migration with your team:"
+  echo "    git add -A && git commit -m \"chore: absorb ${source_path} into shared wt context\""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+}
+
 _wt_cmd_ai_edit() {
   local project_info
   project_info=$(_wt_detect_project)
@@ -464,6 +525,7 @@ AI CONTEXT
   wt --ai-status                  Symlink health check across all worktrees
   wt --ai-fix                     Re-link AI context in the current directory
   wt --ai-fix --resolve           Fix CONFLICT/MISMATCH (absorbs existing files into context/)
+  wt --ai-absorb <path>           Absorb a project path into context/ and replace with symlink
   wt --ai-edit                    Open shared context/ in Cursor
 
   wt --help                       Show this message
@@ -497,7 +559,12 @@ main() {
       _wt_cmd_ai_status
       ;;
     --ai-fix)
-      _wt_cmd_ai_fix
+      shift
+      _wt_cmd_ai_fix "$@"
+      ;;
+    --ai-absorb)
+      shift
+      _wt_cmd_ai_absorb "$@"
       ;;
     --ai-edit)
       _wt_cmd_ai_edit
