@@ -139,6 +139,42 @@ This handles:
 
 ---
 
+## Team best practice — shared AI context repo
+
+Instead of each developer maintaining their own `context/` templates independently, keep your team's AI skills, rules, and workflows in a dedicated repo and pull them into `context/`.
+
+**1. Create a shared team repo** (once, by anyone on the team):
+
+```sh
+# e.g. git@github.com:myorg/team-ai-context.git
+# Populate it with your shared .cursor/rules/, ai/, CLAUDE.md, AGENTS.md, etc.
+```
+
+**2. Each developer clones it into their `context/`** after running `wt setup`:
+
+```sh
+cd wt_your-repo
+
+# Replace context/ contents with the team repo
+rm -rf context
+git clone git@github.com:myorg/team-ai-context.git context
+```
+
+**3. Pull updates whenever the team evolves the shared context:**
+
+```sh
+cd wt_your-repo/context
+git pull
+```
+
+This way:
+- Company-wide skills, rules, and workflows live in one place, versioned and reviewed like any other code.
+- Each developer's `wt_<project>/context/` is a clone of that repo — never committed into the project itself.
+- Personal customizations that shouldn't be shared can be added to `context/` and listed in `context/.git/info/exclude` so they stay local-only.
+- New team members get the full AI setup with two commands: `wt setup` + `git clone` into `context/`.
+
+---
+
 ## Multiple projects
 
 Run `wt setup` from the same workspace directory for each repo:
