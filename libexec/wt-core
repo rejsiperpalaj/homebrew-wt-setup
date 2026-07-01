@@ -142,6 +142,42 @@ _wt_seed_exclude() {
   done
 }
 
+# Read the stored default branch from context/.wt-config, fallback to develop.
+_wt_default_branch() {
+  local context_dir="$1"
+  local config_file="${context_dir}/.wt-config"
+  if [[ -f "$config_file" ]]; then
+    local val
+    val=$(grep '^default_branch=' "$config_file" | head -1 | cut -d= -f2)
+    [[ -n "$val" ]] && echo "$val" && return
+  fi
+  echo "develop"
+}
+
+# Detect the remote's default branch (HEAD branch).
+_wt_detect_default_branch() {
+  local repo_dir="$1"
+  local branch
+  branch=$(git -C "$repo_dir" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+  if [[ -z "$branch" ]]; then
+    # Fallback: fetch remote HEAD explicitly
+    branch=$(git -C "$repo_dir" remote show origin 2>/dev/null | awk '/HEAD branch/ {print $NF}')
+  fi
+  echo "${branch:-develop}"
+}
+
+# Write or update a key=value pair in context/.wt-config.
+_wt_config_set() {
+  local context_dir="$1" key="$2" value="$3"
+  local config_file="${context_dir}/.wt-config"
+  touch "$config_file"
+  if grep -q "^${key}=" "$config_file" 2>/dev/null; then
+    sed -i '' "s|^${key}=.*|${key}=${value}|" "$config_file"
+  else
+    echo "${key}=${value}" >> "$config_file"
+  fi
+}
+
 # Copy templates into a new context/ directory, substituting {{PROJECT_NAME}}.
 _wt_seed_templates() {
   local dest_dir="$1"
@@ -203,7 +239,16 @@ _wt_cmd_setup() {
   # 5. Seed .git/info/exclude (hides AI artifacts from git status)
   _wt_seed_exclude "$main_repo"
 
-  # 6. Symlink AI context into the main repo
+  # 6. Detect and store the default branch
+  echo "→ Detecting default branch..."
+  local default_branch
+  default_branch=$(_wt_detect_default_branch "$main_repo")
+  _wt_config_set "$context_dir" "default_branch" "$default_branch"
+  echo "  Default branch: $default_branch"
+  echo "  (change with: wt --set-default <branch>)"
+  echo ""
+
+  # 7. Symlink AI context into the main repo
   echo "→ Linking AI context into main repo..."
   _wt_link_context "$main_repo" "$context_dir"
   echo ""
@@ -211,10 +256,11 @@ _wt_cmd_setup() {
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "  Done! Workspace ready."
   echo ""
-  echo "  Root:       $wt_root"
-  echo "  Repository: $main_repo"
-  echo "  Worktrees:  $worktrees_root"
-  echo "  Context:    $context_dir"
+  echo "  Root:          $wt_root"
+  echo "  Repository:    $main_repo"
+  echo "  Worktrees:     $worktrees_root"
+  echo "  Context:       $context_dir"
+  echo "  Default branch: $default_branch"
   echo ""
   echo "  Next steps:"
   echo "    Edit AI docs:        cursor $context_dir"
@@ -231,7 +277,7 @@ _wt_cmd_branch() {
   [[ -n "$branch" ]] || _wt_die "usage: wt <branch> [--from <base>] [--checkout]"
   shift
 
-  local base="develop"
+  local base=""
   local checkout_existing=0
 
   while [[ $# -gt 0 ]]; do
@@ -254,6 +300,9 @@ _wt_cmd_branch() {
 
   local main_repo wt_root project_name worktrees_root context_dir
   IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
+
+  # Resolve base branch: --from flag > stored config > fallback develop
+  [[ -z "$base" ]] && base=$(_wt_default_branch "$context_dir")
 
   # Sanitize branch name for use as a directory name
   local sanitized="${branch//\//-}"
@@ -430,6 +479,20 @@ _wt_cmd_ai_fix() {
   fi
 }
 
+_wt_cmd_set_default() {
+  local branch="${1:-}"
+  [[ -n "$branch" ]] || _wt_die "usage: wt --set-default <branch>"
+
+  local project_info
+  project_info=$(_wt_detect_project)
+  local main_repo wt_root project_name worktrees_root context_dir
+  IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
+
+  _wt_config_set "$context_dir" "default_branch" "$branch"
+  echo "Default branch set to: $branch"
+  echo "New branches will be based off origin/$branch"
+}
+
 _wt_cmd_ai_absorb() {
   local source_path="${1:-}"
   local dest_name="${2:-}"
@@ -520,6 +583,7 @@ BRANCHING (run from inside the project or any of its worktrees)
 MANAGEMENT
   wt --list                       List all worktrees for this project
   wt --prune                      Prune stale worktree metadata
+  wt --set-default <branch>       Set the default base branch for new worktrees
 
 AI CONTEXT
   wt --ai-status                  Symlink health check across all worktrees
@@ -559,6 +623,10 @@ main() {
       ;;
     --ai-status)
       _wt_cmd_ai_status
+      ;;
+    --set-default)
+      shift
+      _wt_cmd_set_default "$@"
       ;;
     --ai-fix)
       shift
