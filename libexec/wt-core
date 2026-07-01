@@ -472,10 +472,12 @@ _wt_cmd_ai_fix() {
       if [[ -e "$tgt" ]]; then
         if [[ -f "$tgt" && -f "$src" ]]; then
           # Append the repo's version into context/ under a clear header.
+          # The trailing echo ensures a newline even if the absorbed file lacks one.
           {
             echo ""
             echo "# ── Absorbed from repo on $(date '+%Y-%m-%d') ──"
             cat "$tgt"
+            echo ""
           } >> "$src"
           printf '  %-9s %s  (content appended to context/)\n' "ABSORBED" "$tgt"
         fi
@@ -582,6 +584,7 @@ _wt_cmd_ai_absorb() {
         echo ""
         echo "# ── Absorbed from ${source_path} on $(date '+%Y-%m-%d') ──"
         cat "$abs_source"
+        echo ""
       } >> "$abs_dest"
       echo "  Appended file content into context/${dest_name}"
     else
