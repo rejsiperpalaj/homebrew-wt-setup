@@ -121,7 +121,7 @@ Run from inside the project or any of its worktrees.
 |---|---|
 | `wt --ai-status` | Symlink health check across all worktrees |
 | `wt --ai-fix` | Re-link missing AI context in the current directory |
-| `wt --ai-fix --resolve` | Fix CONFLICT and MISMATCH symlinks (absorbs existing files into `context/`) |
+| `wt --ai-fix --resolve` | Fix CONFLICT and MISMATCH symlinks (deletes existing files, links to `context/`) |
 | `wt --ai-absorb <src> [<dest>]` | Absorb a repo-root-relative path into `context/<dest>` and replace with a symlink |
 | `wt --help` | Show help |
 
@@ -170,7 +170,7 @@ wt --ai-fix --resolve
 ```
 
 This handles:
-- **CONFLICT** — real file exists: content is absorbed into `context/`, file replaced with symlink
+- **CONFLICT** — real file exists: file is deleted, symlink to `context/` created in its place
 - **MISMATCH** — symlink points to wrong target: repointed to the correct `context/` path
 
 ---

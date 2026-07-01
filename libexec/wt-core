@@ -421,7 +421,7 @@ _wt_cmd_ai_status() {
   fi
   echo ""
   echo "Fix MISSING:   run 'wt --ai-fix' from inside the affected worktree"
-  echo "Fix CONFLICT:  run 'wt --ai-fix --resolve' (absorbs existing file into context/)"
+  echo "Fix CONFLICT:  run 'wt --ai-fix --resolve' (deletes existing file, links to context/)"
   echo "Fix MISMATCH:  run 'wt --ai-fix --resolve' (repoints symlink to correct target)"
 }
 
@@ -468,19 +468,9 @@ _wt_cmd_ai_fix() {
         continue
       fi
 
-      # CONFLICT: real file exists — absorb its content into context/, then symlink.
+      # CONFLICT: real file exists — delete it and replace with symlink.
+      # context/ is the source of truth; the repo's copy is discarded.
       if [[ -e "$tgt" ]]; then
-        if [[ -f "$tgt" && -f "$src" ]]; then
-          # Append the repo's version into context/ under a clear header.
-          # The trailing echo ensures a newline even if the absorbed file lacks one.
-          {
-            echo ""
-            echo "# ── Absorbed from repo on $(date '+%Y-%m-%d') ──"
-            cat "$tgt"
-            echo ""
-          } >> "$src"
-          printf '  %-9s %s  (content appended to context/)\n' "ABSORBED" "$tgt"
-        fi
         rm -rf "$tgt"
         ln -s "$src" "$tgt"
         printf '  %-9s %s\n' "LINKED" "$tgt"
