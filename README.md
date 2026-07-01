@@ -59,18 +59,83 @@ Everything is symlinked into the main repo and every worktree. Edit any file fro
 
 ## Commands
 
+### Setup
+
 | Command | Description |
 |---|---|
 | `wt setup <git-url>` | Bootstrap a new project workspace |
+
+### Branching
+
+Run from inside the project or any of its worktrees.
+
+| Command | Description |
+|---|---|
 | `wt <branch>` | New branch off `origin/develop`, cd into it |
 | `wt <branch> --from <base>` | New branch off `origin/<base>` |
 | `wt <branch> --checkout` | Check out existing local or remote branch |
+
+### Management
+
+| Command | Description |
+|---|---|
 | `wt --list` | List all worktrees for this project |
 | `wt --prune` | Prune stale worktree metadata |
+
+### AI context
+
+| Command | Description |
+|---|---|
 | `wt --ai-status` | Symlink health check across all worktrees |
-| `wt --ai-fix` | Re-link AI context in the current directory |
+| `wt --ai-fix` | Re-link missing AI context in the current directory |
+| `wt --ai-fix --resolve` | Fix CONFLICT and MISMATCH symlinks (absorbs existing files into `context/`) |
+| `wt --ai-absorb <src> [<dest>]` | Absorb an existing project path into `context/<dest>` and replace with a symlink |
 | `wt --ai-edit` | Open `context/` in Cursor |
 | `wt --help` | Show help |
+
+---
+
+## Working from the workspace root
+
+All `wt` commands work from both the repo directory and the `wt_` workspace root:
+
+```sh
+cd wt_your-repo
+wt --ai-status    # works — no need to cd into your-repo/ first
+```
+
+---
+
+## Migrating an existing project
+
+If your project already has AI docs committed at a custom path, absorb them into `context/` with a single command:
+
+```sh
+# docs/ai → context/ai
+wt --ai-absorb docs/ai ai
+
+# .ai → context/ai
+wt --ai-absorb .ai ai
+
+# Any path → context/<dest>
+wt --ai-absorb documentation/ai-context ai
+```
+
+This copies the contents into `context/`, deletes the original, and replaces it with a symlink — so any tooling referencing that path keeps working. Then commit the change once to share the migration with your team:
+
+```sh
+git add -A && git commit -m "chore: absorb docs/ai into shared wt context"
+```
+
+If the project has files like `CLAUDE.md` or `AGENTS.md` already committed, run:
+
+```sh
+wt --ai-fix --resolve
+```
+
+This handles:
+- **CONFLICT** — real file exists: content is absorbed into `context/`, file replaced with symlink
+- **MISMATCH** — symlink points to wrong target: repointed to the correct `context/` path
 
 ---
 
