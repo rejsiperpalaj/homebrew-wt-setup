@@ -432,7 +432,8 @@ _wt_cmd_ai_fix() {
 
 _wt_cmd_ai_absorb() {
   local source_path="${1:-}"
-  [[ -n "$source_path" ]] || _wt_die "usage: wt --ai-absorb <path>"
+  local dest_name="${2:-}"
+  [[ -n "$source_path" ]] || _wt_die "usage: wt --ai-absorb <source-path> [<context-dest>]"
 
   local project_info
   project_info=$(_wt_detect_project)
@@ -450,9 +451,8 @@ _wt_cmd_ai_absorb() {
   [[ -e "$abs_source" ]] || _wt_die "path not found: $abs_source"
   [[ -L "$abs_source" ]] && _wt_die "$abs_source is already a symlink — nothing to absorb"
 
-  # Destination inside context/ uses the basename of the source path
-  local dest_name
-  dest_name=$(basename "$abs_source")
+  # Destination inside context/: explicit arg takes priority, otherwise use basename
+  [[ -z "$dest_name" ]] && dest_name=$(basename "$abs_source")
   local abs_dest="${context_dir}/${dest_name}"
 
   echo "Absorbing: $abs_source"
@@ -525,7 +525,7 @@ AI CONTEXT
   wt --ai-status                  Symlink health check across all worktrees
   wt --ai-fix                     Re-link AI context in the current directory
   wt --ai-fix --resolve           Fix CONFLICT/MISMATCH (absorbs existing files into context/)
-  wt --ai-absorb <path>           Absorb a project path into context/ and replace with symlink
+  wt --ai-absorb <src> [<dest>]   Absorb a project path into context/<dest> and replace with symlink
   wt --ai-edit                    Open shared context/ in Cursor
 
   wt --help                       Show this message
@@ -536,6 +536,8 @@ EXAMPLES
   wt TICKET-42-new-feature                  # new branch
   wt TICKET-42-new-feature --checkout       # check out existing
   wt --ai-status                            # health check
+  wt --ai-absorb docs/ai ai                # absorb docs/ai → context/ai
+  wt --ai-absorb .ai ai                    # absorb .ai    → context/ai
 EOF
 }
 
