@@ -61,20 +61,25 @@ This creates:
 
 Everything is symlinked into the main repo and every worktree. Edit any file from inside any checkout — changes are instantly visible everywhere.
 
-`wt setup` also auto-detects the remote's default branch (`main`, `master`, `develop`, etc.) and stores it in `context/.wt-config`. All `wt <branch>` calls use it automatically.
+`wt setup` also auto-detects the remote's default branch (`main`, `master`, `develop`, etc.) and stores it in the repo's local git config as `wt.defaultBranch`. All `wt <branch>` calls use it automatically.
 
 ---
 
 ## Default branch
 
-`wt setup` detects the remote HEAD branch automatically. To override it at any time:
+`wt setup` detects the remote HEAD branch automatically and stores it in the repo's local git config as `wt.defaultBranch` — the standard way tools store per-repo settings, no extra files needed.
+
+To override it at any time:
 
 ```sh
-wt --set-default main
+wt --set-default main          # stored in .git/config (repo-local, per-developer)
 wt --set-default master
+
+# Or set a personal global default for all projects on this machine:
+git config --global wt.defaultBranch main
 ```
 
-Branch resolution priority: `--from` flag → stored config → fallback `develop`.
+Branch resolution priority: `--from` flag → `git config wt.defaultBranch` (local before global) → remote HEAD auto-detection → `develop`.
 
 ```sh
 wt my-feature              # uses stored default

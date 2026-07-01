@@ -142,18 +142,13 @@ _wt_seed_exclude() {
   done
 }
 
-# Read the stored default branch from wt_root/.wt-config, fallback to develop.
-# Config lives at the workspace root (not inside context/) so it survives
-# replacing context/ with a team repo clone.
+# Read wt.defaultBranch from git config (local .git/config > global ~/.gitconfig),
+# fallback to develop. Supports per-repo and per-machine defaults via standard tooling.
 _wt_default_branch() {
-  local wt_root="$1"
-  local config_file="${wt_root}/.wt-config"
-  if [[ -f "$config_file" ]]; then
-    local val
-    val=$(grep '^default_branch=' "$config_file" | head -1 | cut -d= -f2)
-    [[ -n "$val" ]] && echo "$val" && return
-  fi
-  echo "develop"
+  local repo_dir="$1"
+  local val
+  val=$(git -C "$repo_dir" config --get wt.defaultBranch 2>/dev/null)
+  echo "${val:-develop}"
 }
 
 # Detect the remote's default branch (HEAD branch).
@@ -166,18 +161,6 @@ _wt_detect_default_branch() {
     branch=$(git -C "$repo_dir" remote show origin 2>/dev/null | awk '/HEAD branch/ {print $NF}')
   fi
   echo "${branch:-develop}"
-}
-
-# Write or update a key=value pair in wt_root/.wt-config.
-_wt_config_set() {
-  local wt_root="$1" key="$2" value="$3"
-  local config_file="${wt_root}/.wt-config"
-  touch "$config_file"
-  if grep -q "^${key}=" "$config_file" 2>/dev/null; then
-    sed -i '' "s|^${key}=.*|${key}=${value}|" "$config_file"
-  else
-    echo "${key}=${value}" >> "$config_file"
-  fi
 }
 
 # Copy templates into a new context/ directory, substituting {{PROJECT_NAME}}.
@@ -252,7 +235,7 @@ _wt_cmd_setup() {
   echo "→ Detecting default branch..."
   local default_branch
   default_branch=$(_wt_detect_default_branch "$main_repo")
-  _wt_config_set "$wt_root" "default_branch" "$default_branch"
+  git -C "$main_repo" config --local wt.defaultBranch "$default_branch"
   echo "  Default branch: $default_branch"
   echo "  (change with: wt --set-default <branch>)"
   echo ""
@@ -310,8 +293,8 @@ _wt_cmd_branch() {
   local main_repo wt_root project_name worktrees_root context_dir
   IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
 
-  # Resolve base branch: --from flag > stored config > fallback develop
-  [[ -z "$base" ]] && base=$(_wt_default_branch "$wt_root")
+  # Resolve base branch: --from flag > git config wt.defaultBranch > develop
+  [[ -z "$base" ]] && base=$(_wt_default_branch "$main_repo")
 
   # Sanitize branch name for use as a directory name
   local sanitized="${branch//\//-}"
@@ -551,9 +534,12 @@ _wt_cmd_set_default() {
   local main_repo wt_root project_name worktrees_root context_dir
   IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
 
-  _wt_config_set "$wt_root" "default_branch" "$branch"
-  echo "Default branch set to: $branch"
+  git -C "$main_repo" config --local wt.defaultBranch "$branch"
+  echo "Default branch set to: $branch  (stored in .git/config)"
   echo "New branches will be based off origin/$branch"
+  echo ""
+  echo "To set a personal global default instead:"
+  echo "  git config --global wt.defaultBranch $branch"
 }
 
 _wt_cmd_ai_absorb() {
@@ -634,7 +620,7 @@ MANAGEMENT
   wt --list                       List all worktrees for this project
   wt --prune                      Prune stale worktree metadata
   wt --remove <branch>            Remove a worktree and prune metadata
-  wt --set-default <branch>       Set the default base branch for new worktrees
+  wt --set-default <branch>       Set the default base branch (stored in git config)
 
 AI CONTEXT
   wt --ai-status                  Symlink health check across all worktrees
