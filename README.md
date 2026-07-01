@@ -23,7 +23,7 @@ source ~/.zshrc
 
 ---
 
-## Get started
+## Quick start
 
 ```sh
 cd ~/Documents/workspace          # or any directory you use for projects
@@ -56,6 +56,7 @@ This creates:
         │   │   └── README.md
         │   └── tools/             ← scripts used by skills and rules
         │       └── README.md
+        ├── mcp.json               ← MCP server config (Cursor + Claude Code + Codex)
         ├── CLAUDE.md              ← Claude Code bridge → ai/
         └── AGENTS.md             ← Codex bridge → ai/
 ```
@@ -63,6 +64,88 @@ This creates:
 Everything is symlinked into the main repo and every worktree. Edit any file from inside any checkout — changes are instantly visible everywhere.
 
 `wt setup` also auto-detects the remote's default branch (`main`, `master`, `develop`, etc.) and stores it in the repo's local git config as `wt.defaultBranch`. All `wt <branch>` calls use it automatically.
+
+---
+
+## Mental model
+
+`wt setup` creates the workspace structure and wires the doorbells — you never touch them again. Your daily work happens inside `ai/`.
+
+| File / folder | Who manages it | Touch it? |
+|---|---|---|
+| `CLAUDE.md` | `wt setup` | No — thin entry point for Claude Code |
+| `AGENTS.md` | `wt setup` | No — thin entry point for Codex |
+| `.cursor/` | `wt setup` | No — Cursor bridge to `ai/` |
+| `mcp.json` | You | Once — list your MCP servers |
+| `ai/rules/*.mdc` | You | Yes — all your context lives here |
+| `ai/skills/` | You | Yes — task templates |
+| `ai/tools/` | You | Yes — scripts used by skills |
+
+> Do not put content in `CLAUDE.md` or `AGENTS.md` — it will be invisible to Cursor. Put everything in `ai/rules/` instead.
+
+---
+
+## Daily workflow
+
+```sh
+wt TICKET-123-my-feature      # new branch → dropped into the worktree
+# edit ai/rules/project.mdc   # update AI context if needed
+wt --ai-status                # health check
+```
+
+That's it. Rules, skills, and MCP config are already synced to every worktree — nothing else to do.
+
+---
+
+## How AI tools read your context
+
+`ai/` is the single source of truth. All three tools read `ai/rules/` and `ai/skills/` — they just reach them through different mechanisms:
+
+- **Cursor** — path convention. It automatically scans `.cursor/rules/` and `.cursor/skills/` on startup. Those directories are symlinked to `ai/rules/` and `ai/skills/`, so Cursor picks everything up with no extra instruction.
+- **Claude Code** — instruction-based. It reads `CLAUDE.md` first, which explicitly indexes `ai/rules/` and `ai/skills/`. Claude follows those references.
+- **Codex** — same pattern via `AGENTS.md`.
+
+The mechanism differs, but the destination is the same: `ai/rules/` and `ai/skills/`.
+
+```mermaid
+flowchart LR
+    subgraph allTools [Auto-loaded by all 3 tools]
+        rules["ai/rules/\n(.mdc files)"]
+        skills["ai/skills/\n(SKILL.md files)"]
+        tools["ai/tools/\n(scripts)"]
+    end
+
+    subgraph bridges [Bridges]
+        cursor_rules[".cursor/rules\n(symlink)"]
+        cursor_skills[".cursor/skills\n(symlink)"]
+        claude["CLAUDE.md\n(index)"]
+        agents["AGENTS.md\n(index)"]
+    end
+
+    Cursor -->|"auto-scans"| cursor_rules
+    Cursor -->|"auto-scans"| cursor_skills
+    cursor_rules --> rules
+    cursor_skills --> skills
+
+    ClaudeCode -->|"reads index"| claude
+    Codex -->|"reads index"| agents
+    claude --> rules
+    claude --> skills
+    claude --> tools
+    agents --> rules
+    agents --> skills
+    agents --> tools
+```
+
+| Location | Loaded by | Role |
+|---|---|---|
+| `ai/rules/` | All three tools — automatically | All context: project overview, architecture, coding standards, testing, workflows |
+| `ai/skills/` | All three tools — on demand | Step-by-step task templates |
+| `ai/tools/` | All three tools — when a skill invokes it | Scripts and helpers referenced by skills |
+| `CLAUDE.md` | Claude Code | Thin bridge — indexes the three buckets above |
+| `AGENTS.md` | Codex | Thin bridge — same as CLAUDE.md |
+
+Edit in `ai/`. One place, all tools, all worktrees, all branches.
 
 ---
 
@@ -133,119 +216,6 @@ All `wt` commands work from both the repo directory and the `wt_` workspace root
 ```sh
 cd wt_your-repo
 wt --ai-status    # works — no need to cd into your-repo/ first
-```
-
----
-
-## Migrating — coordinate with your team
-
-`wt` is designed to keep AI context **outside** the project repo entirely. If your project already has `ai/`, `.cursor/`, `CLAUDE.md`, or `AGENTS.md` committed, the right move is to remove them from the repo — coordinate with your team so nobody adds them back.
-
-**Steps (done once, by one person — then the team pulls):**
-
-1. Run `wt setup <git-url>` to bootstrap the workspace (if not done yet).
-
-2. Manually copy any existing AI content from the repo into `context/ai/`:
-
-   ```sh
-   cp -r ai/rules/ wt_your-repo/context/ai/rules/
-   cp -r ai/skills/ wt_your-repo/context/ai/skills/
-   cp -r ai/tools/ wt_your-repo/context/ai/tools/    # if tools exist
-   ```
-
-3. Delete the files from git tracking:
-
-   ```sh
-   git rm -r ai/ .cursor/ CLAUDE.md AGENTS.md   # only the files that are committed
-   git commit -m "chore: remove AI context from repo — managed via wt context/"
-   ```
-
-4. Everyone else on the team: `git pull`, then run `wt --ai-fix` once to re-create the symlinks in their local checkout.
-
-After this, AI files are never committed to the project repo again. Each developer's `context/` is local-only, and all worktrees stay in sync automatically.
-
-> **Where to put content going forward:** everything lives in `ai/rules/` as `.mdc` files. All three tools load them automatically — no extra wiring needed.
-
----
-
-## AI tools — why CLAUDE.md, AGENTS.md, and .cursor
-
-`ai/` is the single source of truth. All three tools read `ai/rules/` and `ai/skills/` — they just reach them through different mechanisms:
-
-- **Cursor** — path convention. It automatically scans `.cursor/rules/` and `.cursor/skills/` on startup. Those directories are symlinked to `ai/rules/` and `ai/skills/`, so Cursor picks everything up with no extra instruction.
-- **Claude Code** — instruction-based. It reads `CLAUDE.md` first, which explicitly indexes `ai/rules/` and `ai/skills/`. Claude follows those references.
-- **Codex** — same pattern via `AGENTS.md`.
-
-The mechanism differs, but the destination is the same: `ai/rules/` and `ai/skills/`.
-
-```mermaid
-flowchart LR
-    subgraph allTools [Auto-loaded by all 3 tools]
-        rules["ai/rules/\n(.mdc files)"]
-        skills["ai/skills/\n(SKILL.md files)"]
-        tools["ai/tools/\n(scripts)"]
-    end
-
-    subgraph bridges [Bridges]
-        cursor_rules[".cursor/rules\n(symlink)"]
-        cursor_skills[".cursor/skills\n(symlink)"]
-        claude["CLAUDE.md\n(index)"]
-        agents["AGENTS.md\n(index)"]
-    end
-
-    Cursor -->|"auto-scans"| cursor_rules
-    Cursor -->|"auto-scans"| cursor_skills
-    cursor_rules --> rules
-    cursor_skills --> skills
-
-    ClaudeCode -->|"reads index"| claude
-    Codex -->|"reads index"| agents
-    claude --> rules
-    claude --> skills
-    claude --> tools
-    agents --> rules
-    agents --> skills
-    agents --> tools
-```
-
-| Location | Loaded by | Role |
-|---|---|---|
-| `ai/rules/` | All three tools — automatically | All context: project overview, architecture, coding standards, testing, workflows |
-| `ai/skills/` | All three tools — on demand | Step-by-step task templates |
-| `ai/tools/` | All three tools — when a skill invokes it | Scripts and helpers referenced by skills |
-| `CLAUDE.md` | Claude Code | Thin bridge — indexes the three buckets above |
-| `AGENTS.md` | Codex | Thin bridge — same as CLAUDE.md |
-
-Everything lives in `ai/rules/`, `ai/skills/`, or `ai/tools/`. No indirection needed.
-
-Edit in `ai/`. One place, all tools, all worktrees, all branches.
-
----
-
-## Editing CLAUDE.md and AGENTS.md safely
-
-`CLAUDE.md` and `AGENTS.md` are thin entry-point files — the first thing Claude Code and Codex read. They index the three buckets (`ai/rules/`, `ai/skills/`, `ai/tools/`) and nothing else.
-
-### What you can add
-
-- A short project description at the top (name, tech stack, one-paragraph summary).
-- Links to external resources — Confluence, Notion, runbook URLs.
-
-### What to avoid
-
-Do not add conventions or architecture notes directly to these files. Put them in `ai/rules/` as `.mdc` files — all three tools load them automatically. Content added only to `CLAUDE.md` is invisible to Cursor.
-
-```
-# ❌ Wrong — put this in ai/rules/coding-standards.mdc instead
-Never use force-unwrapping.
-
-# ✅ Right — CLAUDE.md stays thin, ai/rules/ is the source of truth
-```
-
-### The structure
-
-```
-CLAUDE.md / AGENTS.md = project header (yours) + index → ai/rules/, ai/skills/, ai/tools/
 ```
 
 ---
@@ -397,6 +367,57 @@ Edit `context/mcp.json` once — every worktree and every AI tool picks it up in
 ### The golden rule
 
 Everything lives in `ai/rules/`, `ai/skills/`, `ai/tools/`, or `mcp.json`. Edit there — one place, all tools, all worktrees, all branches.
+
+---
+
+## Migrating existing AI context
+
+`wt` keeps AI context outside the project repo. If your project already has AI docs committed, pick your scenario below.
+
+### Scenario A: You have `.cursor/rules/*.mdc` files committed
+
+```sh
+cp -r .cursor/rules/ wt_your-repo/context/ai/rules/
+cp -r .cursor/skills/ wt_your-repo/context/ai/skills/   # if exists
+git rm -r .cursor/
+git commit -m "chore: move AI rules to wt context/"
+```
+
+### Scenario B: You have a monolithic `CLAUDE.md` with your conventions
+
+Split it into per-topic `.mdc` files in `context/ai/rules/`:
+- Project overview → `project.mdc`
+- Architecture decisions → `architecture.mdc`
+- Coding standards → `coding-standards.mdc`
+
+Then delete the originals from the repo (wt creates the bridge symlinks):
+
+```sh
+git rm CLAUDE.md AGENTS.md
+git commit -m "chore: remove AI bridge files — managed via wt"
+```
+
+### Scenario C: You have `docs/ai/` or a custom folder
+
+```sh
+cp -r docs/ai/rules/ wt_your-repo/context/ai/rules/
+cp -r docs/ai/skills/ wt_your-repo/context/ai/skills/
+git rm -r docs/ai/
+git commit -m "chore: move AI docs to wt context/"
+```
+
+### Scenario D: Starting fresh (no existing AI context)
+
+Nothing to migrate. Fill in `context/ai/rules/project.mdc` with your project overview and you're ready.
+
+### After any scenario
+
+```sh
+wt --ai-fix      # re-link in the current checkout
+wt --ai-status   # verify all symlinks are OK
+```
+
+Team members: `git pull`, then `wt --ai-fix` once.
 
 ---
 
