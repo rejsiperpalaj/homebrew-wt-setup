@@ -205,7 +205,49 @@ Run from inside the project or any of its worktrees.
 |---|---|
 | `wt --ai-status` | Symlink health check across all worktrees |
 | `wt --ai-fix` | Re-link AI context in the current directory |
+| `wt --ai-doctor` | Scan `context/ai/` for portability drift (see below) |
 | `wt --help` | Show help |
+
+#### `wt --ai-doctor` — content drift check
+
+`--ai-status` verifies the *symlinks* are healthy. `--ai-doctor` verifies the *content inside* `context/ai/rules/`, `context/ai/skills/`, and `context/ai/tools/` uses citations that resolve for all three AI tools (Cursor, Claude Code, Codex) — not just Cursor.
+
+It flags three classes of drift:
+
+| Finding | Why it matters | Fix |
+|---|---|---|
+| `.cursor/{rules,skills,tools}/…` bare-path references in prose | `.cursor/rules` and `.cursor/skills` are *Cursor-only auto-discovery symlinks* into `ai/`. There is no `.cursor/tools` at all. Claude Code and Codex silently can't follow these. | Use `ai/{rules,skills,tools}/…` |
+| Legacy `mdc:` markdown-link protocol (`[text](mdc:.cursor/rules/foo.mdc)`) | Only Cursor resolves `mdc:`. In Claude Code and Codex the link is dead. | Use bare backtick paths: `` `ai/rules/foo.mdc` `` |
+| Hardcoded `/Users/…` or `/home/…` absolute paths | Non-portable across developers and machines. | Use workspace-relative paths |
+
+Run from anywhere inside the project or from the `wt_` workspace root:
+
+```sh
+wt --ai-doctor
+```
+
+Output — clean:
+
+```
+✓ Clean — no drift found.
+```
+
+Output — findings:
+
+```
+── Stale .cursor/{rules,skills,tools}/ references (use ai/... instead) (2 match(es)) ──
+context/ai/rules/pre-commit-format.mdc:29: bash .cursor/tools/precommit_format.sh
+context/ai/skills/triage-pr/SKILL.md:79: python3 .cursor/tools/fetch_pr_feedback.py
+
+✗ 2 finding(s). Fix by:
+  1. Replace .cursor/{rules,skills,tools}/ with ai/{rules,skills,tools}/ in prose.
+  2. Replace [text](mdc:.cursor/rules/foo.mdc) with bare backticks: `ai/rules/foo.mdc`.
+  3. Replace absolute host paths with workspace-relative paths.
+```
+
+Exit codes: `0` clean, `1` findings, `2` no `context/ai/` present.
+
+Wire it into a CI check on your shared `context/` repo (per the [Team best practice](#team-best-practice--shared-ai-context-repo) below) to catch drift before it reaches other developers' machines.
 
 ---
 
