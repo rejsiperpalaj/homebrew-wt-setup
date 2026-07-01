@@ -5,13 +5,15 @@ alwaysApply: true
 
 # {{PROJECT_NAME}} — AI Context
 
-Before answering questions or writing code, read the shared documentation:
+Read the shared docs before writing code:
 
 - `ai/README.md` — project overview, tech stack, key concepts
 - `ai/architecture.md` — system design and component map
 - `ai/coding-standards.md` — team conventions, patterns to use and avoid
 - `ai/testing.md` — testing approach and patterns
 - `ai/workflows.md` — git branching, PR process, worktree usage
+- `ai/rules/` — all active rules for this project (this directory)
+- `ai/skills/` — reusable task templates the agent can follow
 
 These files live in `context/` at the workspace root and are shared across
 the main repo and all worktrees via symlinks. Edit them there — changes

@@ -42,15 +42,21 @@ This creates:
     │   └── AGENTS.md → ../context/AGENTS.md   (symlink)
     ├── your-repo.worktrees/       ← feature branch worktrees land here
     └── context/                   ← shared AI docs (never committed)
-        ├── .cursor/rules/project.mdc
-        ├── ai/
+        ├── .cursor/
+        │   ├── rules  → ../ai/rules   (symlink — Cursor bridge)
+        │   └── skills → ../ai/skills  (symlink — Cursor bridge)
+        ├── ai/                    ← single source of truth
+        │   ├── rules/             ← Cursor rules (.mdc files)
+        │   │   └── project.mdc
+        │   ├── skills/            ← Cursor skills (SKILL.md files)
+        │   │   └── README.md
         │   ├── README.md
         │   ├── architecture.md
         │   ├── coding-standards.md
         │   ├── testing.md
         │   └── workflows.md
-        ├── CLAUDE.md
-        └── AGENTS.md
+        ├── CLAUDE.md              ← Claude Code bridge → ai/
+        └── AGENTS.md             ← Codex bridge → ai/
 ```
 
 Everything is symlinked into the main repo and every worktree. Edit any file from inside any checkout — changes are instantly visible everywhere.
@@ -162,17 +168,24 @@ This handles:
 
 ## AI tools — why CLAUDE.md, AGENTS.md, and .cursor
 
-Different AI tools read different files as their source of project context. `wt` creates all of them as symlinks into the same `context/` directory, so you write your rules, skills, and workflows **once** and every tool picks them up automatically.
+`ai/` is the single source of truth. Everything lives there. `CLAUDE.md`, `AGENTS.md`, and `.cursor/` are thin bridges that point each tool at `ai/`.
 
-| File / folder | Read by | Purpose |
+```
+ai/rules/    ←── .cursor/rules  (symlink — Cursor reads .mdc files here)
+ai/skills/   ←── .cursor/skills (symlink — Cursor reads SKILL.md files here)
+ai/          ←── CLAUDE.md      (bridge — "read ai/ for full context")
+ai/          ←── AGENTS.md      (bridge — "read ai/ for full context")
+```
+
+| File / folder | Read by | Role |
 |---|---|---|
-| `CLAUDE.md` | Claude Code (Anthropic CLI) | Project context, conventions, instructions Claude reads at session start |
-| `AGENTS.md` | OpenAI Codex, GPT-based agents | Same purpose for OpenAI-family agents |
-| `.cursor/rules/` | Cursor IDE | `.mdc` rule files Cursor applies during coding sessions |
-| `.cursor/skills/` | Cursor IDE | Skills (reusable task templates) the Cursor agent can invoke |
-| `ai/` | Any tool, by reference | Richer docs — architecture, coding standards, testing, workflows — linked from CLAUDE.md / AGENTS.md |
+| `ai/rules/` | Cursor IDE (via `.cursor/rules` symlink) | `.mdc` rule files — enforced automatically during coding |
+| `ai/skills/` | Cursor IDE (via `.cursor/skills` symlink) | Reusable task templates the agent can invoke |
+| `ai/*.md` | Any tool, by reference | Architecture, coding standards, testing, workflows |
+| `CLAUDE.md` | Claude Code (Anthropic CLI) | Bridge — directs Claude to read `ai/` |
+| `AGENTS.md` | OpenAI Codex, GPT-based agents | Bridge — directs Codex to read `ai/` |
 
-Because all of these are symlinks to `context/`, editing one file inside any worktree updates every tool's view simultaneously.
+You edit rules in `ai/rules/`, skills in `ai/skills/`, docs in `ai/`. One place, all tools pick it up instantly across every worktree.
 
 ---
 
@@ -180,11 +193,11 @@ Because all of these are symlinks to `context/`, editing one file inside any wor
 
 ### Rules (Cursor)
 
-Rules go in `context/.cursor/rules/` as `.mdc` files. Each rule is always-on or scoped to specific files.
+Rules go in `context/ai/rules/` as `.mdc` files. Cursor finds them via the `.cursor/rules → ../ai/rules` symlink bridge.
 
 ```
 context/
-└── .cursor/
+└── ai/
     └── rules/
         ├── project.mdc          ← repo-wide conventions (architecture, patterns, do-nots)
         ├── testing.mdc          ← test standards
@@ -199,11 +212,11 @@ A good `project.mdc` covers:
 
 ### Skills (Cursor)
 
-Skills go in `context/.cursor/skills/` as folders with a `SKILL.md` inside. Each skill is a reusable, invocable task the agent can follow step by step.
+Skills go in `context/ai/skills/` as folders with a `SKILL.md` inside. Cursor finds them via the `.cursor/skills → ../ai/skills` symlink bridge.
 
 ```
 context/
-└── .cursor/
+└── ai/
     └── skills/
         ├── create-feature/
         │   └── SKILL.md   ← step-by-step: ViewModel + Service + tests
@@ -248,13 +261,13 @@ The `ai/` folder holds deeper docs that you can link from CLAUDE.md/AGENTS.md:
 
 ### Cross-tool consistency
 
-Since `CLAUDE.md`, `AGENTS.md`, `.cursor/rules/`, and `ai/` all live in `context/` and are symlinked into every worktree:
+Everything lives in `ai/`. Tools read from there via bridges:
 
-- A rule you add to `.cursor/rules/project.mdc` is available in Cursor immediately across all branches.
-- An update to `CLAUDE.md` is picked up by Claude Code in every worktree the next time it opens.
-- Adding a new workflow to `ai/workflows.md` and referencing it from both `CLAUDE.md` and `AGENTS.md` keeps all tools aligned.
+- Add a rule to `ai/rules/project.mdc` → Cursor picks it up immediately via `.cursor/rules` symlink, across all branches.
+- Add a skill to `ai/skills/my-skill/SKILL.md` → available in Cursor immediately.
+- Update `ai/workflows.md` → both `CLAUDE.md` and `AGENTS.md` already point there, so Claude Code and Codex both see the change.
 
-You never copy-paste context between tools or branches.
+You never copy-paste context between tools or branches. Edit once in `ai/`, everything updates.
 
 ---
 

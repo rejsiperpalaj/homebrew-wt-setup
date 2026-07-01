@@ -227,6 +227,13 @@ _wt_cmd_setup() {
   # 2. Seed context/ from templates
   echo "→ Creating shared context..."
   _wt_seed_templates "$context_dir" "$project_name"
+
+  # Wire .cursor/rules and .cursor/skills as symlink bridges into ai/
+  # (cp -r dereferences symlinks, so these must be created programmatically)
+  mkdir -p "${context_dir}/.cursor"
+  ln -s ../ai/rules  "${context_dir}/.cursor/rules"
+  ln -s ../ai/skills "${context_dir}/.cursor/skills"
+
   echo "  context/ ready at $context_dir"
   echo ""
 

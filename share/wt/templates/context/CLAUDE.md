@@ -4,7 +4,7 @@ This file guides Claude when working in this repository.
 
 Read `ai/README.md` first for the full project context.
 
-## Quick reference
+## Documentation index
 
 | Topic | File |
 |---|---|
@@ -13,9 +13,12 @@ Read `ai/README.md` first for the full project context.
 | Coding standards | `ai/coding-standards.md` |
 | Testing | `ai/testing.md` |
 | Git & PR workflow | `ai/workflows.md` |
+| Rules | `ai/rules/` |
+| Skills / task templates | `ai/skills/` |
 
 ## Important
 
-These files live in `context/` at the workspace root. They are shared across
-the main repo and all worktrees. Edit them in `context/` — changes propagate
-instantly to every checkout.
+All files above live in `context/` at the workspace root — outside the git
+repository. They are shared across the main repo and every worktree via
+symlinks. Edit them from inside any checkout; changes propagate instantly
+everywhere.
