@@ -451,6 +451,110 @@ _wt_cmd_ai_fix() {
   _wt_link_context "$main_repo" "$context_dir"
 }
 
+# --------------------------------------------------------------
+# wt --ai-doctor
+# Scan context/ai/{rules,skills,tools} for portability + tool-agnostic drift:
+#   1. `.cursor/(rules|skills|tools)/` references   → should be `ai/...`
+#   2. `mdc:` protocol markdown links               → should be bare backtick paths
+#   3. `# Usage: bash .cursor/tools/...` in scripts → should be `ai/tools/...`
+#   4. Hardcoded `/Users/` or `/home/` absolute paths — non-portable
+#
+# Rationale: rules/skills/tools live in `ai/` and are read by Cursor, Claude Code,
+# and Codex. Cursor also auto-scans `.cursor/rules` and `.cursor/skills`, which
+# are symlinks INTO `ai/`, but skill/rule text should always cite the canonical
+# `ai/...` path so all three tools can resolve it (only Cursor understands
+# `.cursor/...` and `mdc:` protocol).
+#
+# Exit codes: 0 = clean, 1 = findings, 2 = context/ai/ not found.
+# --------------------------------------------------------------
+_wt_cmd_ai_doctor() {
+  local project_info
+  project_info=$(_wt_detect_project)
+  local main_repo wt_root project_name worktrees_root context_dir
+  IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
+
+  local ai_dir="${context_dir}/ai"
+  if [[ ! -d "$ai_dir" ]]; then
+    echo "wt: context/ai/ not found at $ai_dir" >&2
+    exit 2
+  fi
+
+  # ripgrep is nice but not required — fall back to grep -rn.
+  local grep_bin
+  if command -v rg >/dev/null 2>&1; then
+    grep_bin="rg --with-filename --line-number --color=never"
+  else
+    grep_bin="grep -Rn"
+  fi
+
+  echo "Project:  $project_name"
+  echo "Scanning: $ai_dir"
+  echo ""
+
+  local findings=0
+  local rules_dir="${ai_dir}/rules"
+  local skills_dir="${ai_dir}/skills"
+  local tools_dir="${ai_dir}/tools"
+
+  _wt_ai_check_pattern() {
+    local label="$1"
+    local pattern="$2"
+    shift 2
+    local scan_dirs=("$@")
+
+    local output=""
+    local d
+    for d in "${scan_dirs[@]}"; do
+      [[ -d "$d" ]] || continue
+      # Capture matches; grep exits 1 when no match — swallow it.
+      local this
+      this=$(eval "$grep_bin \"\$pattern\" \"\$d\"" 2>/dev/null || true)
+      [[ -n "$this" ]] && output+="$this"$'\n'
+    done
+
+    if [[ -n "$output" ]]; then
+      local count
+      count=$(printf '%s' "$output" | grep -c '.' || true)
+      findings=$((findings + count))
+      echo "── $label ($count match(es)) ──"
+      # Strip leading context_dir for portability of the report.
+      printf '%s' "$output" | sed "s|${context_dir}/|context/|g"
+      echo ""
+    fi
+  }
+
+  _wt_ai_check_pattern \
+    "Stale .cursor/{rules,skills,tools}/ references (use ai/... instead)" \
+    '\.cursor/(rules|skills|tools)/' \
+    "$rules_dir" "$skills_dir" "$tools_dir"
+
+  # Match only the actual Cursor `mdc:` markdown-link protocol: `](mdc:...)`.
+  # This avoids false positives when a rule *documents* the legacy syntax
+  # (e.g. `` `mdc:` link `` inside a sentence) or lists a filename+colon
+  # like `foo.mdc:` in a bullet.
+  _wt_ai_check_pattern \
+    "Legacy 'mdc:' protocol links (use bare backtick paths instead)" \
+    '\]\(mdc:' \
+    "$rules_dir" "$skills_dir"
+
+  _wt_ai_check_pattern \
+    "Hardcoded absolute host paths (non-portable across machines)" \
+    '(/Users/|/home/)[A-Za-z0-9._-]+' \
+    "$rules_dir" "$skills_dir" "$tools_dir"
+
+  echo ""
+  if [[ "$findings" -eq 0 ]]; then
+    echo "✓ Clean — no drift found."
+    return 0
+  else
+    echo "✗ $findings finding(s). Fix by:"
+    echo "  1. Replace .cursor/{rules,skills,tools}/ with ai/{rules,skills,tools}/ in prose."
+    echo "  2. Replace [text](mdc:.cursor/rules/foo.mdc) with bare backticks: \`ai/rules/foo.mdc\`."
+    echo "  3. Replace absolute host paths with workspace-relative paths."
+    return 1
+  fi
+}
+
 _wt_cmd_remove() {
   local branch="${1:-}"
   [[ -n "$branch" ]] || _wt_die "usage: wt --remove <branch>"
@@ -519,6 +623,8 @@ MANAGEMENT
 AI CONTEXT
   wt --ai-status                  Symlink health check across all worktrees
   wt --ai-fix                     Re-link AI context in the current directory
+  wt --ai-doctor                  Scan context/ai/ for portability drift
+                                  (.cursor/* references, mdc: protocol, absolute host paths)
 
   wt --help                       Show this message
 
@@ -560,6 +666,9 @@ main() {
       ;;
     --ai-fix)
       _wt_cmd_ai_fix
+      ;;
+    --ai-doctor)
+      _wt_cmd_ai_doctor
       ;;
     --help|-h)
       _wt_cmd_help
