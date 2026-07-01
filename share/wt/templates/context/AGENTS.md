@@ -5,6 +5,7 @@ Read the following before taking action:
 - **Rules and conventions**: `ai/rules/` — project overview, architecture, coding standards, testing, git workflow
 - **Task templates**: `ai/skills/`
 - **Scripts and helpers**: `ai/tools/`
+- **MCP servers**: `.mcp.json`
 
 ## Important
 

@@ -71,12 +71,12 @@ _wt_detect_project() {
   printf '%s' "${main_repo}|${wt_root}|${project_name}|${worktrees_root}|${context_dir}"
 }
 
-# Create symlinks for .cursor, CLAUDE.md, and AGENTS.md from context/ into a checkout.
+# Create symlinks for .cursor, ai, CLAUDE.md, AGENTS.md, mcp.json from context/ into a checkout.
 _wt_link_context() {
   local target_dir="$1"
   local context_dir="$2"
 
-  local items=(".cursor" "ai" "CLAUDE.md" "AGENTS.md")
+  local items=(".cursor" "ai" "CLAUDE.md" "AGENTS.md" "mcp.json")
   local item src tgt cur
 
   for item in "${items[@]}"; do
@@ -216,6 +216,7 @@ _wt_cmd_setup() {
   mkdir -p "${context_dir}/.cursor"
   ln -s ../ai/rules  "${context_dir}/.cursor/rules"
   ln -s ../ai/skills "${context_dir}/.cursor/skills"
+  ln -s ../mcp.json  "${context_dir}/.cursor/mcp.json"
   # tools/ lives inside ai/ — no bridge needed, ai/ is already symlinked
   mkdir -p "${context_dir}/ai/tools"
 
@@ -333,7 +334,7 @@ _wt_cmd_branch() {
   echo "→ Linking AI context..."
   # Link missing items and silently repoint any stale symlinks (common on --checkout
   # of a branch that already has a worktree directory with old symlinks).
-  local items=(".cursor" "ai" "CLAUDE.md" "AGENTS.md")
+  local items=(".cursor" "ai" "CLAUDE.md" "AGENTS.md" "mcp.json")
   local item
   for item in "${items[@]}"; do
     local src="${context_dir}/${item}"
@@ -394,7 +395,7 @@ _wt_cmd_ai_status() {
   local main_repo wt_root project_name worktrees_root context_dir
   IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
 
-  local items=(".cursor" "ai" "CLAUDE.md" "AGENTS.md")
+  local items=(".cursor" "ai" "CLAUDE.md" "AGENTS.md" "mcp.json")
 
   echo "Project:  $project_name"
   echo "Context:  $context_dir"

@@ -366,9 +366,37 @@ chmod +x ai/tools/run-simulator.sh
 
 ---
 
+### MCP servers
+
+Put your MCP server configuration in `context/mcp.json` — the single source of truth:
+
+```json
+{
+  "mcpServers": {
+    "slack": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-slack"],
+      "env": { "SLACK_BOT_TOKEN": "xoxb-..." }
+    }
+  }
+}
+```
+
+`wt setup` wires this automatically to all three AI tools:
+
+| Tool | Path | How |
+|---|---|---|
+| Cursor | `.cursor/mcp.json` | symlink → `context/.cursor/mcp.json` → `context/mcp.json` |
+| Claude Code | `.mcp.json` | symlink → `context/mcp.json` |
+| Codex | `.mcp.json` | same symlink |
+
+Edit `context/mcp.json` once — every worktree and every AI tool picks it up instantly.
+
+---
+
 ### The golden rule
 
-Everything lives in `ai/rules/`, `ai/skills/`, or `ai/tools/`. Edit there — one place, all tools, all worktrees, all branches.
+Everything lives in `ai/rules/`, `ai/skills/`, `ai/tools/`, or `mcp.json`. Edit there — one place, all tools, all worktrees, all branches.
 
 ---
 

@@ -9,6 +9,7 @@ This file guides Claude when working in this repository.
 | Rules and conventions | `ai/rules/` |
 | Task templates | `ai/skills/` |
 | Scripts and helpers | `ai/tools/` |
+| MCP servers | `.mcp.json` |
 
 Read `ai/rules/` before writing any code — the rules there cover the project overview, architecture, coding standards, testing approach, and git workflow.
 
