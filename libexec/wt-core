@@ -554,19 +554,6 @@ _wt_cmd_ai_absorb() {
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 }
 
-_wt_cmd_ai_edit() {
-  local project_info
-  project_info=$(_wt_detect_project)
-  local main_repo wt_root project_name worktrees_root context_dir
-  IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
-
-  if command -v cursor &>/dev/null; then
-    cursor "$context_dir"
-  else
-    echo "Open your shared context in your editor:"
-    echo "  $context_dir"
-  fi
-}
 
 _wt_cmd_help() {
   cat <<'EOF'
@@ -590,7 +577,6 @@ AI CONTEXT
   wt --ai-fix                     Re-link AI context in the current directory
   wt --ai-fix --resolve           Fix CONFLICT/MISMATCH (absorbs existing files into context/)
   wt --ai-absorb <src> [<dest>]   Absorb a project path into context/<dest> and replace with symlink
-  wt --ai-edit                    Open shared context/ in Cursor
 
   wt --help                       Show this message
 
@@ -635,9 +621,6 @@ main() {
     --ai-absorb)
       shift
       _wt_cmd_ai_absorb "$@"
-      ;;
-    --ai-edit)
-      _wt_cmd_ai_edit
       ;;
     --help|-h)
       _wt_cmd_help

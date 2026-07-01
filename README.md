@@ -111,7 +111,6 @@ Run from inside the project or any of its worktrees.
 | `wt --ai-fix` | Re-link missing AI context in the current directory |
 | `wt --ai-fix --resolve` | Fix CONFLICT and MISMATCH symlinks (absorbs existing files into `context/`) |
 | `wt --ai-absorb <src> [<dest>]` | Absorb an existing project path into `context/<dest>` and replace with a symlink |
-| `wt --ai-edit` | Open `context/` in Cursor |
 | `wt --help` | Show help |
 
 ---
