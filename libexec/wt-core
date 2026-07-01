@@ -142,10 +142,12 @@ _wt_seed_exclude() {
   done
 }
 
-# Read the stored default branch from context/.wt-config, fallback to develop.
+# Read the stored default branch from wt_root/.wt-config, fallback to develop.
+# Config lives at the workspace root (not inside context/) so it survives
+# replacing context/ with a team repo clone.
 _wt_default_branch() {
-  local context_dir="$1"
-  local config_file="${context_dir}/.wt-config"
+  local wt_root="$1"
+  local config_file="${wt_root}/.wt-config"
   if [[ -f "$config_file" ]]; then
     local val
     val=$(grep '^default_branch=' "$config_file" | head -1 | cut -d= -f2)
@@ -166,10 +168,10 @@ _wt_detect_default_branch() {
   echo "${branch:-develop}"
 }
 
-# Write or update a key=value pair in context/.wt-config.
+# Write or update a key=value pair in wt_root/.wt-config.
 _wt_config_set() {
-  local context_dir="$1" key="$2" value="$3"
-  local config_file="${context_dir}/.wt-config"
+  local wt_root="$1" key="$2" value="$3"
+  local config_file="${wt_root}/.wt-config"
   touch "$config_file"
   if grep -q "^${key}=" "$config_file" 2>/dev/null; then
     sed -i '' "s|^${key}=.*|${key}=${value}|" "$config_file"
@@ -243,7 +245,7 @@ _wt_cmd_setup() {
   echo "→ Detecting default branch..."
   local default_branch
   default_branch=$(_wt_detect_default_branch "$main_repo")
-  _wt_config_set "$context_dir" "default_branch" "$default_branch"
+  _wt_config_set "$wt_root" "default_branch" "$default_branch"
   echo "  Default branch: $default_branch"
   echo "  (change with: wt --set-default <branch>)"
   echo ""
@@ -302,7 +304,7 @@ _wt_cmd_branch() {
   IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
 
   # Resolve base branch: --from flag > stored config > fallback develop
-  [[ -z "$base" ]] && base=$(_wt_default_branch "$context_dir")
+  [[ -z "$base" ]] && base=$(_wt_default_branch "$wt_root")
 
   # Sanitize branch name for use as a directory name
   local sanitized="${branch//\//-}"
@@ -337,12 +339,35 @@ _wt_cmd_branch() {
 
   echo ""
   echo "→ Linking AI context..."
-  _wt_link_context "$wt_path" "$context_dir"
+  # Link missing items and silently repoint any stale symlinks (common on --checkout
+  # of a branch that already has a worktree directory with old symlinks).
+  local items=(".cursor" "ai" "CLAUDE.md" "AGENTS.md")
+  local item
+  for item in "${items[@]}"; do
+    local src="${context_dir}/${item}"
+    local tgt="${wt_path}/${item}"
+    [[ ! -e "$src" ]] && continue
+    if [[ -L "$tgt" ]]; then
+      local cur
+      cur=$(readlink "$tgt")
+      if [[ "$cur" != "$src" ]]; then
+        rm "$tgt" && ln -s "$src" "$tgt"
+        printf '  %-9s %s\n' "RELINKED" "$tgt"
+      else
+        printf '  %-9s %s\n' "OK" "$tgt"
+      fi
+    elif [[ ! -e "$tgt" ]]; then
+      ln -s "$src" "$tgt"
+      printf '  %-9s %s\n' "LINKED" "$tgt"
+    else
+      _wt_warn "$tgt exists and is not a symlink — skipping (run wt --ai-fix --resolve)"
+    fi
+  done
   echo ""
   echo "Worktree ready:"
   echo "  Path:   $wt_path"
   echo "  Branch: $branch  (base: origin/$base)"
-  echo "  HEAD:   $(git -C "$wt_path" rev-parse --short HEAD)"
+  echo "  HEAD:   $(git -C "$wt_path" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
   echo ""
 
   _wt_cd "$wt_path"
@@ -356,7 +381,7 @@ _wt_cmd_list() {
 
   echo "Project: $project_name"
   echo ""
-  git -C "$main_repo" worktree list
+  git -C "$main_repo" worktree list || _wt_die "git worktree list failed"
 }
 
 _wt_cmd_prune() {
@@ -366,9 +391,9 @@ _wt_cmd_prune() {
   IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
 
   echo "Pruning stale worktree metadata..."
-  git -C "$main_repo" worktree prune -v
+  git -C "$main_repo" worktree prune -v || _wt_die "git worktree prune failed"
   echo ""
-  git -C "$main_repo" worktree list
+  git -C "$main_repo" worktree list || _wt_die "git worktree list failed"
 }
 
 _wt_cmd_ai_status() {
@@ -422,8 +447,9 @@ _wt_cmd_ai_fix() {
   local main_repo wt_root project_name worktrees_root context_dir
   IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
 
-  local current_dir
-  current_dir=$(pwd)
+  # Always operate on the repo root, not the cwd — running from a subdir would
+  # create symlinks in the wrong place.
+  local current_dir="$main_repo"
 
   if [[ "$resolve" == "1" ]]; then
     echo "Resolving AI context conflicts in: $current_dir"
@@ -474,9 +500,39 @@ _wt_cmd_ai_fix() {
       printf '  %-9s %s\n' "LINKED" "$tgt"
     done
   else
-    echo "Linking AI context in: $current_dir"
-    _wt_link_context "$current_dir" "$context_dir"
+    echo "Linking AI context in: $main_repo"
+    _wt_link_context "$main_repo" "$context_dir"
   fi
+}
+
+_wt_cmd_remove() {
+  local branch="${1:-}"
+  [[ -n "$branch" ]] || _wt_die "usage: wt --remove <branch>"
+
+  local project_info
+  project_info=$(_wt_detect_project)
+  local main_repo wt_root project_name worktrees_root context_dir
+  IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
+
+  local sanitized="${branch//\//-}"
+  local wt_path="${worktrees_root}/${sanitized}"
+
+  [[ -e "$wt_path" ]] || _wt_die "worktree not found: $wt_path"
+
+  echo "Removing worktree: $wt_path"
+
+  git -C "$main_repo" worktree remove "$wt_path" --force \
+    || _wt_die "git worktree remove failed — branch may be checked out elsewhere"
+
+  # Remove directory if git left it behind
+  [[ -d "$wt_path" ]] && rm -rf "$wt_path"
+
+  echo "→ Pruning stale metadata..."
+  git -C "$main_repo" worktree prune
+
+  echo ""
+  echo "Removed: $branch"
+  git -C "$main_repo" worktree list
 }
 
 _wt_cmd_set_default() {
@@ -488,7 +544,7 @@ _wt_cmd_set_default() {
   local main_repo wt_root project_name worktrees_root context_dir
   IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
 
-  _wt_config_set "$context_dir" "default_branch" "$branch"
+  _wt_config_set "$wt_root" "default_branch" "$branch"
   echo "Default branch set to: $branch"
   echo "New branches will be based off origin/$branch"
 }
@@ -563,20 +619,21 @@ SETUP (run once per project, from your workspace directory)
   wt setup <git-url>              Bootstrap a new project workspace
 
 BRANCHING (run from inside the project or any of its worktrees)
-  wt <branch>                     New branch off origin/develop, cd into it
+  wt <branch>                     New branch off the default base branch, cd into it
   wt <branch> --from <base>       New branch off origin/<base>
   wt <branch> --checkout          Check out existing local or remote branch
 
 MANAGEMENT
   wt --list                       List all worktrees for this project
   wt --prune                      Prune stale worktree metadata
+  wt --remove <branch>            Remove a worktree and prune metadata
   wt --set-default <branch>       Set the default base branch for new worktrees
 
 AI CONTEXT
   wt --ai-status                  Symlink health check across all worktrees
   wt --ai-fix                     Re-link AI context in the current directory
   wt --ai-fix --resolve           Fix CONFLICT/MISMATCH (absorbs existing files into context/)
-  wt --ai-absorb <src> [<dest>]   Absorb a project path into context/<dest> and replace with symlink
+  wt --ai-absorb <src> [<dest>]   Absorb a repo-root-relative path into context/<dest>, replace with symlink
 
   wt --help                       Show this message
 
@@ -609,6 +666,10 @@ main() {
       ;;
     --ai-status)
       _wt_cmd_ai_status
+      ;;
+    --remove)
+      shift
+      _wt_cmd_remove "$@"
       ;;
     --set-default)
       shift

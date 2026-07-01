@@ -101,6 +101,7 @@ Run from inside the project or any of its worktrees.
 |---|---|
 | `wt --list` | List all worktrees for this project |
 | `wt --prune` | Prune stale worktree metadata |
+| `wt --remove <branch>` | Remove a worktree and prune metadata |
 | `wt --set-default <branch>` | Set the default base branch for new worktrees |
 
 ### AI context
@@ -110,7 +111,7 @@ Run from inside the project or any of its worktrees.
 | `wt --ai-status` | Symlink health check across all worktrees |
 | `wt --ai-fix` | Re-link missing AI context in the current directory |
 | `wt --ai-fix --resolve` | Fix CONFLICT and MISMATCH symlinks (absorbs existing files into `context/`) |
-| `wt --ai-absorb <src> [<dest>]` | Absorb an existing project path into `context/<dest>` and replace with a symlink |
+| `wt --ai-absorb <src> [<dest>]` | Absorb a repo-root-relative path into `context/<dest>` and replace with a symlink |
 | `wt --help` | Show help |
 
 ---
@@ -192,6 +193,8 @@ This way:
 - Each developer's `wt_<project>/context/` is a clone of that repo — never committed into the project itself.
 - Personal customizations that shouldn't be shared can be added to `context/` and listed in `context/.git/info/exclude` so they stay local-only.
 - New team members get the full AI setup with two commands: `wt setup` + `git clone` into `context/`.
+
+> **Note:** After replacing `context/` with the team repo, re-run `wt --set-default <branch>` to restore the stored default branch. The config lives at `wt_<project>/.wt-config` (outside `context/`), so it is never overwritten by a team repo clone.
 
 ---
 
