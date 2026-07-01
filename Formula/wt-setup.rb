@@ -1,9 +1,9 @@
 class WtSetup < Formula
   desc "Git worktree manager with shared AI context — wt setup, wt <branch>, wt --ai-status"
   homepage "https://github.com/rejsiperpalaj/homebrew-wt-setup"
-  url "https://github.com/rejsiperpalaj/homebrew-wt-setup/archive/refs/tags/v1.0.17.tar.gz"
-  sha256 "5bb8e501caaf40afec7e0056f177a6151c7e034bab4b17f506b84dd7851c0d48"
-  version "1.0.17"
+  url "https://github.com/rejsiperpalaj/homebrew-wt-setup/archive/refs/tags/v1.0.18.tar.gz"
+  sha256 "091a2a8f044218235f6c733c5e4a5e5c4023dabbb8e572a5d5b6acab984a5d45"
+  version "1.0.18"
   head "https://github.com/rejsiperpalaj/homebrew-wt-setup.git", branch: "main"
 
   def install
