@@ -159,6 +159,8 @@ wt --ai-absorb documentation/ai ai      # documentation/ai → context/ai/
 
 `wt --ai-absorb` copies the contents into `context/ai/`, deletes the original, and links `ai/`, `.cursor/`, `CLAUDE.md`, and `AGENTS.md` into the repo root at their canonical paths. `CLAUDE.md` and `AGENTS.md` come from the `context/` templates which already reference `ai/` — nothing to update manually. Commit once to share the migration with your team:
 
+> **Where to put your content:** put architecture, testing, and workflow context in `ai/rules/` as `.mdc` files — all three tools load them automatically. If you prefer long-form `ai/*.md` docs, add a reference to each in `ai/rules/project.mdc` so Cursor picks them up too.
+
 ```sh
 git add -A && git commit -m "chore: absorb docs/ai into shared wt context"
 ```
@@ -187,10 +189,13 @@ The mechanism differs, but the destination is the same: `ai/rules/` and `ai/skil
 
 ```mermaid
 flowchart LR
-    subgraph source [Single source of truth]
+    subgraph allTools [Auto-loaded by all 3 tools]
         rules["ai/rules/\n(.mdc files)"]
         skills["ai/skills/\n(SKILL.md files)"]
-        docs["ai/*.md\n(architecture, testing, workflows)"]
+    end
+
+    subgraph mdDocs [Long-form docs]
+        docs["ai/architecture.md\nai/testing.md\nai/workflows.md\netc."]
     end
 
     subgraph bridges [Bridges]
@@ -198,10 +203,17 @@ flowchart LR
         cursor_skills[".cursor/skills\n(symlink)"]
         claude["CLAUDE.md\n(index file)"]
         agents["AGENTS.md\n(index file)"]
+        proj["project.mdc\n(alwaysApply: true)"]
     end
 
+    Cursor -->|"auto-scans"| cursor_rules
+    Cursor -->|"auto-scans"| cursor_skills
     cursor_rules --> rules
     cursor_skills --> skills
+    rules --> proj
+
+    ClaudeCode -->|"reads index"| claude
+    Codex -->|"reads index"| agents
     claude --> rules
     claude --> skills
     claude --> docs
@@ -209,19 +221,18 @@ flowchart LR
     agents --> skills
     agents --> docs
 
-    Cursor -->|"auto-scans"| cursor_rules
-    Cursor -->|"auto-scans"| cursor_skills
-    ClaudeCode -->|"reads index"| claude
-    Codex -->|"reads index"| agents
+    proj -->|"instructs Cursor\nto read"| docs
 ```
 
-| File / folder | Read by | Mechanism | Role |
-|---|---|---|---|
-| `ai/rules/` | Cursor, Claude Code, Codex | Cursor: `.cursor/rules` symlink — Claude/Codex: bridge file index | `.mdc` rule files enforced during coding |
-| `ai/skills/` | Cursor, Claude Code, Codex | Cursor: `.cursor/skills` symlink — Claude/Codex: bridge file index | Reusable task templates |
-| `ai/*.md` | Cursor, Claude Code, Codex | Bridge file index | Architecture, coding standards, testing, workflows |
-| `CLAUDE.md` | Claude Code | Auto-read by Claude on startup | Index — directs Claude to `ai/rules/`, `ai/skills/`, `ai/*.md` |
-| `AGENTS.md` | Codex, GPT-based agents | Auto-read by Codex on startup | Index — directs Codex to `ai/rules/`, `ai/skills/`, `ai/*.md` |
+| File / folder | Auto-loaded by | Notes |
+|---|---|---|
+| `ai/rules/` | All three tools | Primary home — put all context here for guaranteed auto-loading by every tool |
+| `ai/skills/` | All three tools | Step-by-step task templates, invoked on demand |
+| `ai/*.md` | Claude Code and Codex always; Cursor when a rule references it | `project.mdc` already references the default docs — so Cursor reads them via that rule. Any new `ai/*.md` file you add needs a reference in `project.mdc` to be visible to Cursor. |
+| `CLAUDE.md` | Claude Code | Bridge — indexes `ai/rules/`, `ai/skills/`, and `ai/*.md` docs |
+| `AGENTS.md` | Codex | Bridge — same as CLAUDE.md |
+
+**The safest approach: put everything in `ai/rules/`.** Architecture notes, testing conventions, workflow steps — if they live in a `.mdc` rule, all three tools load them automatically with no indirection needed.
 
 Edit in `ai/`. One place, all tools, all worktrees, all branches.
 
@@ -232,6 +243,8 @@ Edit in `ai/`. One place, all tools, all worktrees, all branches.
 ### Rules
 
 Rules go in `context/ai/rules/` as `.mdc` files. Cursor finds them automatically via the `.cursor/rules → ../ai/rules` symlink bridge. Claude Code and Codex read them because `CLAUDE.md` and `AGENTS.md` reference `ai/rules/`.
+
+Rules are the safest place for all context — architecture notes, coding conventions, do-nots, workflow steps. Everything in a `.mdc` rule is guaranteed to reach all three tools automatically, with no extra wiring needed.
 
 ```
 context/
@@ -314,39 +327,35 @@ What the agent should produce when done.
 
 ---
 
-### Workflows
+### Long-form docs (`ai/*.md`)
 
-Workflows are docs in `ai/` describing processes — git flow, release steps, onboarding, etc. They are not CLAUDE.md/AGENTS.md content; those files just index them.
+For content that is too long for a rule — full API references, onboarding guides, detailed architecture diagrams — you can write `ai/*.md` standalone docs.
+
+Claude Code and Codex index and read these automatically via `CLAUDE.md` and `AGENTS.md`. Cursor reads them because `project.mdc` (which is auto-loaded) explicitly lists them under "read before writing code".
 
 ```
 ai/
-├── workflows.md     ← already exists (git branching, PR process)
-├── deployment.md    ← new: how to release
-└── onboarding.md    ← new: how to get started on the repo
+├── architecture.md     ← system design (already referenced by project.mdc)
+├── testing.md          ← test patterns (already referenced by project.mdc)
+├── workflows.md        ← git & PR process (already referenced by project.mdc)
+└── deployment.md       ← new: add one reference in project.mdc for Cursor
 ```
 
-When you add a new workflow doc, register it in three places so every tool knows it exists:
+When you add a new `ai/*.md` file, add one line to `ai/rules/project.mdc` so Cursor picks it up:
 
-**1. `ai/rules/project.mdc`** — add a bullet in the doc list:
 ```markdown
 - `ai/deployment.md` — release process
 ```
 
-**2. `CLAUDE.md`** — add a row to the index table:
-```markdown
-| Deployment process | `ai/deployment.md` |
-```
+`CLAUDE.md` and `AGENTS.md` already point at `ai/` broadly — Claude and Codex find new files automatically.
 
-**3. `AGENTS.md`** — add a bullet to the index list:
-```markdown
-- **Deployment process**: `ai/deployment.md`
-```
+> **Prefer rules for anything you want all three tools to always have in context.** Architecture notes, conventions, and workflow steps fit naturally as `.mdc` rules and reach all three tools with no extra wiring.
 
 ---
 
 ### The golden rule
 
-Edit in `ai/`. Update the index in `CLAUDE.md`, `AGENTS.md`, and `ai/rules/project.mdc` when you add a new file. That is all. All tools, all worktrees, all branches — one edit propagates everywhere.
+Edit in `ai/`. When you add a new `ai/*.md` doc, add one reference line to `ai/rules/project.mdc`. That is all — all tools, all worktrees, all branches, one edit.
 
 ---
 
