@@ -140,20 +140,24 @@ wt --ai-status    # works — no need to cd into your-repo/ first
 
 ## Migrating an existing project
 
-If your project already has AI docs committed at a custom path, absorb them into `context/` with a single command:
+If your project already has AI docs committed at a custom path, absorb them into `context/ai/` with a single command.
+
+**Always pass `ai` as the second argument** — that is the destination inside `context/`, so everything lands at `context/ai/` where all tools expect it:
 
 ```sh
-# docs/ai → context/ai
-wt --ai-absorb docs/ai ai
-
-# .ai → context/ai
-wt --ai-absorb .ai ai
-
-# Any path → context/<dest>
-wt --ai-absorb documentation/ai-context ai
+wt --ai-absorb <src> ai
+#                    ^^^ always "ai" — lands at context/ai/
 ```
 
-This copies the contents into `context/`, deletes the original, and replaces it with a symlink — so any tooling referencing that path keeps working. Then commit the change once to share the migration with your team:
+Common examples:
+
+```sh
+wt --ai-absorb .ai ai                   # .ai              → context/ai/
+wt --ai-absorb docs/ai ai               # docs/ai          → context/ai/
+wt --ai-absorb documentation/ai ai      # documentation/ai → context/ai/
+```
+
+`wt --ai-absorb` copies the contents into `context/ai/`, deletes the original, and replaces it with a symlink — so any tooling referencing that path keeps working. Then commit the change once to share the migration with your team:
 
 ```sh
 git add -A && git commit -m "chore: absorb docs/ai into shared wt context"

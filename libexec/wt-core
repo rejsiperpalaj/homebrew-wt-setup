@@ -626,7 +626,7 @@ AI CONTEXT
   wt --ai-status                  Symlink health check across all worktrees
   wt --ai-fix                     Re-link AI context in the current directory
   wt --ai-fix --resolve           Fix CONFLICT/MISMATCH (absorbs existing files into context/)
-  wt --ai-absorb <src> [<dest>]   Absorb a repo-root-relative path into context/<dest>, replace with symlink
+  wt --ai-absorb <src> ai         Absorb a repo-root-relative path into context/ai/, replace with symlink
 
   wt --help                       Show this message
 
@@ -636,8 +636,8 @@ EXAMPLES
   wt TICKET-42-new-feature                  # new branch
   wt TICKET-42-new-feature --checkout       # check out existing
   wt --ai-status                            # health check
-  wt --ai-absorb docs/ai ai                # absorb docs/ai → context/ai
-  wt --ai-absorb .ai ai                    # absorb .ai    → context/ai
+  wt --ai-absorb docs/ai ai                # docs/ai → context/ai/
+  wt --ai-absorb .ai ai                    # .ai     → context/ai/
 EOF
 }
 
