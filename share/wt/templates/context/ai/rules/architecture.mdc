@@ -1,6 +1,9 @@
-# Architecture — {{PROJECT_NAME}}
+---
+description: System design and architecture for {{PROJECT_NAME}}
+alwaysApply: true
+---
 
-> Describe the high-level system design here so AI tools understand the structure before suggesting changes.
+# Architecture — {{PROJECT_NAME}}
 
 ## Overview
 

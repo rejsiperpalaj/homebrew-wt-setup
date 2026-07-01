@@ -1,6 +1,9 @@
-# Workflows — {{PROJECT_NAME}}
+---
+description: Git, PR, and worktree workflow for {{PROJECT_NAME}}
+alwaysApply: true
+---
 
-> Document git and PR workflows here.
+# Workflows — {{PROJECT_NAME}}
 
 ## Branching strategy
 
@@ -26,15 +29,13 @@ _Describe how releases are cut and deployed._
 
 ## Worktree usage with `wt`
 
-This project uses git worktrees for parallel branch work.
-
 **Create a new feature branch** (from inside the repo or any worktree):
 
 ```sh
 wt TICKET-123-my-feature
 ```
 
-**Start from a specific base** (instead of `develop`):
+**Start from a specific base** (instead of the default branch):
 
 ```sh
 wt TICKET-123-my-feature --from release/2.0
@@ -58,15 +59,9 @@ wt --list
 wt --prune
 ```
 
-**Check AI context symlinks** (if Cursor seems to be missing rules):
+**Check AI context symlinks**:
 
 ```sh
 wt --ai-status
 wt --ai-fix   # re-links context in the current worktree
-```
-
-**Edit the shared AI documentation** (opens context/ in Cursor):
-
-```sh
-wt --ai-edit
 ```

@@ -1,6 +1,9 @@
-# Testing — {{PROJECT_NAME}}
+---
+description: Testing approach and patterns for {{PROJECT_NAME}}
+alwaysApply: true
+---
 
-> Document testing conventions here so AI-generated code includes the right kinds of tests.
+# Testing — {{PROJECT_NAME}}
 
 ## Test structure
 

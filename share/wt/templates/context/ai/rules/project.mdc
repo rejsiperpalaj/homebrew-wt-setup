@@ -1,20 +1,22 @@
 ---
-description: Project-specific AI rules for {{PROJECT_NAME}}
+description: Project overview for {{PROJECT_NAME}}
 alwaysApply: true
 ---
 
-# {{PROJECT_NAME}} — AI Context
+# {{PROJECT_NAME}} — Project Overview
 
-Read the shared docs before writing code:
+## What this project does
 
-- `ai/README.md` — project overview, tech stack, key concepts
-- `ai/architecture.md` — system design and component map
-- `ai/coding-standards.md` — team conventions, patterns to use and avoid
-- `ai/testing.md` — testing approach and patterns
-- `ai/workflows.md` — git branching, PR process, worktree usage
-- `ai/rules/` — all active rules for this project (this directory)
-- `ai/skills/` — reusable task templates the agent can follow
+_Describe the product and its purpose in 2–3 sentences._
 
-These files live in `context/` at the workspace root and are shared across
-the main repo and all worktrees via symlinks. Edit them there — changes
-are immediately visible everywhere.
+## Tech stack
+
+_List the main technologies, frameworks, languages, and platforms._
+
+## Key concepts
+
+_List domain concepts an AI should understand to help effectively._
+
+## Repository layout
+
+_Describe the main source directories and what they contain._

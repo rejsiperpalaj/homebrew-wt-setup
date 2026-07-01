@@ -46,17 +46,16 @@ This creates:
         │   ├── rules  → ../ai/rules   (symlink — Cursor bridge)
         │   └── skills → ../ai/skills  (symlink — Cursor bridge)
         ├── ai/                    ← single source of truth
-        │   ├── rules/             ← Cursor rules (.mdc files)
-        │   │   └── project.mdc
+        │   ├── rules/             ← rules (.mdc files) — loaded by all 3 tools
+        │   │   ├── project.mdc
+        │   │   ├── architecture.mdc
+        │   │   ├── coding-standards.mdc
+        │   │   ├── testing.mdc
+        │   │   └── workflows.mdc
         │   ├── skills/            ← task templates (SKILL.md files)
         │   │   └── README.md
-        │   ├── tools/             ← scripts used by skills and rules
-        │   │   └── README.md
-        │   ├── README.md
-        │   ├── architecture.md
-        │   ├── coding-standards.md
-        │   ├── testing.md
-        │   └── workflows.md
+        │   └── tools/             ← scripts used by skills and rules
+        │       └── README.md
         ├── CLAUDE.md              ← Claude Code bridge → ai/
         └── AGENTS.md             ← Codex bridge → ai/
 ```
@@ -152,7 +151,6 @@ wt --ai-status    # works — no need to cd into your-repo/ first
    cp -r ai/rules/ wt_your-repo/context/ai/rules/
    cp -r ai/skills/ wt_your-repo/context/ai/skills/
    cp -r ai/tools/ wt_your-repo/context/ai/tools/    # if tools exist
-   # copy any other ai/*.md files you want to keep
    ```
 
 3. Delete the files from git tracking:
@@ -166,7 +164,7 @@ wt --ai-status    # works — no need to cd into your-repo/ first
 
 After this, AI files are never committed to the project repo again. Each developer's `context/` is local-only, and all worktrees stay in sync automatically.
 
-> **Where to put content going forward:** put architecture, testing, and workflow context in `ai/rules/` as `.mdc` files — all three tools load them automatically. If you prefer long-form `ai/*.md` docs, add a reference to each in `ai/rules/project.mdc` so Cursor picks them up too.
+> **Where to put content going forward:** everything lives in `ai/rules/` as `.mdc` files. All three tools load them automatically — no extra wiring needed.
 
 ---
 
@@ -185,47 +183,40 @@ flowchart LR
     subgraph allTools [Auto-loaded by all 3 tools]
         rules["ai/rules/\n(.mdc files)"]
         skills["ai/skills/\n(SKILL.md files)"]
-    end
-
-    subgraph mdDocs [Long-form docs]
-        docs["ai/architecture.md\nai/testing.md\nai/workflows.md\netc."]
+        tools["ai/tools/\n(scripts)"]
     end
 
     subgraph bridges [Bridges]
         cursor_rules[".cursor/rules\n(symlink)"]
         cursor_skills[".cursor/skills\n(symlink)"]
-        claude["CLAUDE.md\n(index file)"]
-        agents["AGENTS.md\n(index file)"]
-        proj["project.mdc\n(alwaysApply: true)"]
+        claude["CLAUDE.md\n(index)"]
+        agents["AGENTS.md\n(index)"]
     end
 
     Cursor -->|"auto-scans"| cursor_rules
     Cursor -->|"auto-scans"| cursor_skills
     cursor_rules --> rules
     cursor_skills --> skills
-    rules --> proj
 
     ClaudeCode -->|"reads index"| claude
     Codex -->|"reads index"| agents
     claude --> rules
     claude --> skills
-    claude --> docs
+    claude --> tools
     agents --> rules
     agents --> skills
-    agents --> docs
-
-    proj -->|"instructs Cursor\nto read"| docs
+    agents --> tools
 ```
 
-| File / folder | Auto-loaded by | Notes |
+| Location | Loaded by | Role |
 |---|---|---|
-| `ai/rules/` | All three tools | Primary home — put all context here for guaranteed auto-loading by every tool |
-| `ai/skills/` | All three tools | Step-by-step task templates, invoked on demand |
-| `ai/*.md` | Claude Code and Codex always; Cursor when a rule references it | `project.mdc` already references the default docs — so Cursor reads them via that rule. Any new `ai/*.md` file you add needs a reference in `project.mdc` to be visible to Cursor. |
-| `CLAUDE.md` | Claude Code | Bridge — indexes `ai/rules/`, `ai/skills/`, and `ai/*.md` docs |
-| `AGENTS.md` | Codex | Bridge — same as CLAUDE.md |
+| `ai/rules/` | All three tools — automatically | All context: project overview, architecture, coding standards, testing, workflows |
+| `ai/skills/` | All three tools — on demand | Step-by-step task templates |
+| `ai/tools/` | All three tools — when a skill invokes it | Scripts and helpers referenced by skills |
+| `CLAUDE.md` | Claude Code | Thin bridge — indexes the three buckets above |
+| `AGENTS.md` | Codex | Thin bridge — same as CLAUDE.md |
 
-**The safest approach: put everything in `ai/rules/`.** Architecture notes, testing conventions, workflow steps — if they live in a `.mdc` rule, all three tools load them automatically with no indirection needed.
+Everything lives in `ai/rules/`, `ai/skills/`, or `ai/tools/`. No indirection needed.
 
 Edit in `ai/`. One place, all tools, all worktrees, all branches.
 
@@ -233,45 +224,29 @@ Edit in `ai/`. One place, all tools, all worktrees, all branches.
 
 ## Editing CLAUDE.md and AGENTS.md safely
 
-`CLAUDE.md` and `AGENTS.md` are the **orchestration layer** — the first thing Claude Code and Codex read when they start in the repo. They work as a thin index pointing each tool at `ai/rules/`, `ai/skills/`, and the default `ai/*.md` docs. Editing them incorrectly will silently break tool access to everything inside `ai/`.
+`CLAUDE.md` and `AGENTS.md` are thin entry-point files — the first thing Claude Code and Codex read. They index the three buckets (`ai/rules/`, `ai/skills/`, `ai/tools/`) and nothing else.
 
-### What to leave alone
-
-`wt setup` generates both files with an index section pointing at `ai/rules/` and `ai/skills/`. Do not remove or rename those entries. They are the bridge — without them, Claude and Codex will not load your rules or skills.
-
-Do not change the paths unless you also move the actual files inside `context/ai/`.
-
-### What you can safely add
+### What you can add
 
 - A short project description at the top (name, tech stack, one-paragraph summary).
 - Links to external resources — Confluence, Notion, runbook URLs.
-- Project-specific high-level instructions (e.g. "This is an iOS project. All code is Swift.").
 
-### The pattern
+### What to avoid
 
-```
-CLAUDE.md / AGENTS.md
-  = short project header   ← yours to edit freely
-  + index pointing at ai/  ← do not touch
-```
-
-Everything inside `ai/rules/` and `ai/skills/` is yours to edit freely — that is where your conventions, do-nots, and task templates live. The bridge files are thin entry points, not the source of truth.
-
-### Rules vs bridge files
-
-A common mistake is adding conventions directly to `CLAUDE.md` instead of a rule. Avoid this:
+Do not add conventions or architecture notes directly to these files. Put them in `ai/rules/` as `.mdc` files — all three tools load them automatically. Content added only to `CLAUDE.md` is invisible to Cursor.
 
 ```
 # ❌ Wrong — put this in ai/rules/coding-standards.mdc instead
-Do not use force-unwrapping in Swift.
+Never use force-unwrapping.
+
+# ✅ Right — CLAUDE.md stays thin, ai/rules/ is the source of truth
 ```
 
-```
-# ✅ Right — CLAUDE.md stays thin
-| Coding standards | ai/rules/coding-standards.mdc |
-```
+### The structure
 
-Rules in `ai/rules/` reach all three tools (Cursor, Claude, Codex) automatically. Content added only to `CLAUDE.md` is invisible to Cursor and Codex.
+```
+CLAUDE.md / AGENTS.md = project header (yours) + index → ai/rules/, ai/skills/, ai/tools/
+```
 
 ---
 
@@ -279,9 +254,9 @@ Rules in `ai/rules/` reach all three tools (Cursor, Claude, Codex) automatically
 
 ### Rules
 
-Rules go in `context/ai/rules/` as `.mdc` files. Cursor finds them automatically via the `.cursor/rules → ../ai/rules` symlink bridge. Claude Code and Codex read them because `CLAUDE.md` and `AGENTS.md` reference `ai/rules/`.
+Rules go in `context/ai/rules/` as `.mdc` files. Cursor finds them automatically via the `.cursor/rules → ../ai/rules` symlink. Claude Code and Codex read them because `CLAUDE.md` and `AGENTS.md` reference `ai/rules/`.
 
-Rules are the safest place for all context — architecture notes, coding conventions, do-nots, workflow steps. Everything in a `.mdc` rule is guaranteed to reach all three tools automatically, with no extra wiring needed.
+This is where all context lives — project overview, architecture, coding conventions, testing approach, workflow steps. Everything in a `.mdc` rule reaches all three tools automatically.
 
 ```
 context/
@@ -346,7 +321,7 @@ One sentence — what triggers this skill.
 Example: "Use when the user asks to add a new feature."
 
 ## Before you start
-- Read ai/architecture.md
+- Read `ai/rules/architecture.mdc` and `ai/rules/coding-standards.mdc`
 - Confirm the feature scope with the user
 
 ## Steps
@@ -391,35 +366,9 @@ chmod +x ai/tools/run-simulator.sh
 
 ---
 
-### Long-form docs (`ai/*.md`)
-
-For content that is too long for a rule — full API references, onboarding guides, detailed architecture diagrams — you can write `ai/*.md` standalone docs.
-
-Claude Code and Codex index and read these automatically via `CLAUDE.md` and `AGENTS.md`. Cursor reads them because `project.mdc` (which is auto-loaded) explicitly lists them under "read before writing code".
-
-```
-ai/
-├── architecture.md     ← system design (already referenced by project.mdc)
-├── testing.md          ← test patterns (already referenced by project.mdc)
-├── workflows.md        ← git & PR process (already referenced by project.mdc)
-└── deployment.md       ← new: add one reference in project.mdc for Cursor
-```
-
-When you add a new `ai/*.md` file, add one line to `ai/rules/project.mdc` so Cursor picks it up:
-
-```markdown
-- `ai/deployment.md` — release process
-```
-
-`CLAUDE.md` and `AGENTS.md` already point at `ai/` broadly — Claude and Codex find new files automatically.
-
-> **Prefer rules for anything you want all three tools to always have in context.** Architecture notes, conventions, and workflow steps fit naturally as `.mdc` rules and reach all three tools with no extra wiring.
-
----
-
 ### The golden rule
 
-Edit in `ai/`. When you add a new `ai/*.md` doc, add one reference line to `ai/rules/project.mdc`. That is all — all tools, all worktrees, all branches, one edit.
+Everything lives in `ai/rules/`, `ai/skills/`, or `ai/tools/`. Edit there — one place, all tools, all worktrees, all branches.
 
 ---
 

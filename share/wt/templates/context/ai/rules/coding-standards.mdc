@@ -1,6 +1,9 @@
-# Coding Standards — {{PROJECT_NAME}}
+---
+description: Coding conventions and standards for {{PROJECT_NAME}}
+alwaysApply: true
+---
 
-> Document team conventions here so AI tools generate code that matches the codebase from the start.
+# Coding Standards — {{PROJECT_NAME}}
 
 ## Naming conventions
 
