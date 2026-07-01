@@ -28,6 +28,20 @@ One sentence — what triggers this skill.
 What the agent should produce when done.
 ```
 
+## Referencing a tool from a skill
+
+Scripts in `ai/tools/` are available to all three AI tools at the same path.
+Reference them directly from any `SKILL.md`:
+
+```markdown
+## Steps
+1. Run `ai/tools/run-simulator.sh` and pick a destination.
+2. ...
+```
+
+The path `ai/tools/<script>` resolves identically in the main repo and every
+worktree because `ai/` is symlinked at the repo root by `wt`.
+
 ## Examples
 
 - `create-feature/SKILL.md` — step-by-step for adding a new feature (ViewModel + Service + tests)

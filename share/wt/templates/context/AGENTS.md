@@ -11,6 +11,7 @@ Read `ai/README.md` for the full project context before taking action.
 - **Git & PR workflow**: `ai/workflows.md`
 - **Rules**: `ai/rules/`
 - **Skills / task templates**: `ai/skills/`
+- **Tools / scripts**: `ai/tools/`
 
 ## Important
 

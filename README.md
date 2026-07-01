@@ -48,7 +48,9 @@ This creates:
         ├── ai/                    ← single source of truth
         │   ├── rules/             ← Cursor rules (.mdc files)
         │   │   └── project.mdc
-        │   ├── skills/            ← Cursor skills (SKILL.md files)
+        │   ├── skills/            ← task templates (SKILL.md files)
+        │   │   └── README.md
+        │   ├── tools/             ← scripts used by skills and rules
         │   │   └── README.md
         │   ├── README.md
         │   ├── architecture.md
@@ -149,6 +151,7 @@ wt --ai-status    # works — no need to cd into your-repo/ first
    ```sh
    cp -r ai/rules/ wt_your-repo/context/ai/rules/
    cp -r ai/skills/ wt_your-repo/context/ai/skills/
+   cp -r ai/tools/ wt_your-repo/context/ai/tools/    # if tools exist
    # copy any other ai/*.md files you want to keep
    ```
 
@@ -358,6 +361,33 @@ What the agent should produce when done.
 **How each tool picks it up:**
 - **Cursor** — invoke by referencing the skill in chat: "follow the create-feature skill". Cursor reads `ai/skills/create-feature/SKILL.md` via the `.cursor/skills` symlink.
 - **Claude Code / Codex** — tell the agent "follow the create-feature skill" and it reads `ai/skills/create-feature/SKILL.md` directly.
+
+---
+
+### Tools
+
+Scripts used by skills go in `context/ai/tools/`. Since `ai/` is symlinked into every worktree, `ai/tools/<script>` resolves identically in the main repo and every worktree — for Cursor, Claude, and Codex.
+
+```
+ai/
+└── tools/
+    ├── run-simulator.sh    ← referenced by the run-ios skill
+    └── trigger-build.py   ← referenced by the deploy skill
+```
+
+A skill references a tool simply:
+
+```markdown
+## Steps
+1. Run `ai/tools/run-simulator.sh` to list available destinations.
+2. ...
+```
+
+Make scripts executable after adding them:
+
+```sh
+chmod +x ai/tools/run-simulator.sh
+```
 
 ---
 

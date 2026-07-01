@@ -216,6 +216,8 @@ _wt_cmd_setup() {
   mkdir -p "${context_dir}/.cursor"
   ln -s ../ai/rules  "${context_dir}/.cursor/rules"
   ln -s ../ai/skills "${context_dir}/.cursor/skills"
+  # tools/ lives inside ai/ — no bridge needed, ai/ is already symlinked
+  mkdir -p "${context_dir}/ai/tools"
 
   echo "  context/ ready at $context_dir"
   echo ""
@@ -419,6 +421,19 @@ _wt_cmd_ai_status() {
   if [[ "$found" == "0" ]]; then
     echo "  (none)"
   fi
+  echo ""
+  echo ""
+  echo "context/ai/ subdirectories:"
+  local ai_subdirs=("rules" "skills" "tools")
+  local sub
+  for sub in "${ai_subdirs[@]}"; do
+    local subdir="${context_dir}/ai/${sub}"
+    if [[ -d "$subdir" ]]; then
+      printf '  %-9s %s\n' "OK" "context/ai/${sub}/"
+    else
+      printf '  %-9s %s\n' "MISSING" "context/ai/${sub}/ — create it: mkdir -p context/ai/${sub}"
+    fi
+  done
   echo ""
   echo "Fix MISSING:   run 'wt --ai-fix' from the project or workspace root"
   echo "Fix CONFLICT:  manually delete the existing file, then run 'wt --ai-fix'"

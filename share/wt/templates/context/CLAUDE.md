@@ -15,6 +15,7 @@ Read `ai/README.md` first for the full project context.
 | Git & PR workflow | `ai/workflows.md` |
 | Rules | `ai/rules/` |
 | Skills / task templates | `ai/skills/` |
+| Tools / scripts | `ai/tools/` |
 
 ## Important
 
