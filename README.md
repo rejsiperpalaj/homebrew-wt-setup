@@ -55,6 +55,26 @@ This creates:
 
 Everything is symlinked into the main repo and every worktree. Edit any file from inside any checkout — changes are instantly visible everywhere.
 
+`wt setup` also auto-detects the remote's default branch (`main`, `master`, `develop`, etc.) and stores it in `context/.wt-config`. All `wt <branch>` calls use it automatically.
+
+---
+
+## Default branch
+
+`wt setup` detects the remote HEAD branch automatically. To override it at any time:
+
+```sh
+wt --set-default main
+wt --set-default master
+```
+
+Branch resolution priority: `--from` flag → stored config → fallback `develop`.
+
+```sh
+wt my-feature              # uses stored default
+wt my-feature --from main  # overrides for this branch only
+```
+
 ---
 
 ## Commands
@@ -71,7 +91,7 @@ Run from inside the project or any of its worktrees.
 
 | Command | Description |
 |---|---|
-| `wt <branch>` | New branch off `origin/develop`, cd into it |
+| `wt <branch>` | New branch off the default base branch, cd into it |
 | `wt <branch> --from <base>` | New branch off `origin/<base>` |
 | `wt <branch> --checkout` | Check out existing local or remote branch |
 
@@ -81,6 +101,7 @@ Run from inside the project or any of its worktrees.
 |---|---|
 | `wt --list` | List all worktrees for this project |
 | `wt --prune` | Prune stale worktree metadata |
+| `wt --set-default <branch>` | Set the default base branch for new worktrees |
 
 ### AI context
 
