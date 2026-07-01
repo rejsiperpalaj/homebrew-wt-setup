@@ -583,23 +583,26 @@ _wt_cmd_ai_absorb() {
     fi
   fi
 
-  # Remove original and replace with symlink
+  # Delete the original — the path changes, that is the point.
   rm -rf "$abs_source"
-  ln -s "$abs_dest" "$abs_source"
-  echo "  Replaced with symlink → $abs_dest"
+  echo "  Deleted: $source_path"
   echo ""
 
   # Link the standard context items (ai, .cursor, CLAUDE.md, AGENTS.md) into the
-  # main repo root so tools find them at the expected paths (e.g. ai/ not docs/ai/).
+  # main repo root at their canonical paths (e.g. ai/ not docs/ai/).
   echo "→ Linking standard AI context into repo root..."
   _wt_link_context "$main_repo" "$context_dir"
   echo ""
 
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "  Done. ${source_path} now points to shared context/."
+  echo "  Done. Content is now at context/${dest_name}/,"
+  echo "  linked from the repo root as ${dest_name}/."
+  echo ""
+  echo "  Update any references from '${source_path}' to '${dest_name}'"
+  echo "  in your CLAUDE.md, AGENTS.md, and docs."
   echo ""
   echo "  Commit this change to share the migration with your team:"
-  echo "    git add -A && git commit -m \"chore: absorb ${source_path} into shared wt context\""
+  echo "    git add -A && git commit -m \"chore: absorb ${source_path} → ${dest_name}/ via shared wt context\""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 }
 

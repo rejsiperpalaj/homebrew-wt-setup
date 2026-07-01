@@ -157,7 +157,7 @@ wt --ai-absorb docs/ai ai               # docs/ai          → context/ai/
 wt --ai-absorb documentation/ai ai      # documentation/ai → context/ai/
 ```
 
-`wt --ai-absorb` copies the contents into `context/ai/`, deletes the original, replaces it with a symlink, and then automatically links `ai/`, `.cursor/`, `CLAUDE.md`, and `AGENTS.md` into the repo root — so all tools find everything at the expected paths immediately. Then commit the change once to share the migration with your team:
+`wt --ai-absorb` copies the contents into `context/ai/`, deletes the original (the path changes — that is the point), and links `ai/`, `.cursor/`, `CLAUDE.md`, and `AGENTS.md` into the repo root at their canonical paths. Update any references from the old path (`docs/ai`) to the new one (`ai`) in your `CLAUDE.md`, `AGENTS.md`, and docs. Then commit once to share the migration with your team:
 
 ```sh
 git add -A && git commit -m "chore: absorb docs/ai into shared wt context"
