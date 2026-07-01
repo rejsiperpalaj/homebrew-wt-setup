@@ -191,9 +191,9 @@ You edit rules in `ai/rules/`, skills in `ai/skills/`, docs in `ai/`. One place,
 
 ## How to set up skills, rules, and workflows
 
-### Rules (Cursor)
+### Rules
 
-Rules go in `context/ai/rules/` as `.mdc` files. Cursor finds them via the `.cursor/rules → ../ai/rules` symlink bridge.
+Rules go in `context/ai/rules/` as `.mdc` files. Cursor finds them automatically via the `.cursor/rules → ../ai/rules` symlink bridge. Claude Code and Codex read them because `CLAUDE.md` and `AGENTS.md` reference `ai/rules/`.
 
 ```
 context/
@@ -201,18 +201,40 @@ context/
     └── rules/
         ├── project.mdc          ← repo-wide conventions (architecture, patterns, do-nots)
         ├── testing.mdc          ← test standards
-        └── api-contracts.mdc   ← API / DTO rules
+        └── api-contracts.mdc    ← API / DTO rules
 ```
 
-A good `project.mdc` covers:
-- Stack and architecture overview (what layers exist, how they communicate)
-- Naming conventions
-- What NOT to do (anti-patterns specific to this codebase)
-- Where shared utilities live so the agent reuses them
+Every `.mdc` file needs a frontmatter header:
 
-### Skills (Cursor)
+```markdown
+---
+description: What this rule enforces
+alwaysApply: true          # always active for every session
+# globs: ["**/*.swift"]   # or scope to specific file types only
+---
 
-Skills go in `context/ai/skills/` as folders with a `SKILL.md` inside. Cursor finds them via the `.cursor/skills → ../ai/skills` symlink bridge.
+# Rule title
+
+What the agent must / must not do. Be specific — reference actual
+file paths, class names, and patterns from this codebase.
+
+## Do
+- ...
+
+## Do not
+- ...
+```
+
+**How each tool picks it up:**
+- **Cursor** — reads all `.mdc` files in `.cursor/rules/` (the symlink to `ai/rules/`) automatically every session. No extra step.
+- **Claude Code** — `CLAUDE.md` says "read `ai/rules/`". Claude reads the files there when following the bridge instructions.
+- **Codex** — same via `AGENTS.md`.
+
+---
+
+### Skills
+
+Skills go in `context/ai/skills/` as folders with a `SKILL.md` inside. Each skill is a reusable, step-by-step task template the agent follows on demand.
 
 ```
 context/
@@ -226,48 +248,67 @@ context/
             └── SKILL.md
 ```
 
-### Workflows (CLAUDE.md / AGENTS.md)
-
-`CLAUDE.md` and `AGENTS.md` contain the same information, formatted for their respective tools. A good structure:
+`SKILL.md` structure:
 
 ```markdown
-# Project: <name>
+# Skill name
 
-## What this is
-One paragraph — what the repo does, its purpose.
+## When to use
+One sentence — what triggers this skill.
+Example: "Use when the user asks to add a new feature."
 
-## Architecture
-How the code is structured: layers, packages, key patterns.
+## Before you start
+- Read ai/architecture.md
+- Confirm the feature scope with the user
 
-## Key conventions
-- Language/framework version
-- Code style rules that matter
-- How to name things
+## Steps
+1. ...
+2. ...
+3. ...
 
-## Common tasks
-- How to run locally
-- How to run tests
-- How to add a feature (brief — link to skills for detail)
-
-## Do not
-- Specific things the agent should never do in this repo
+## Output
+What the agent should produce when done.
 ```
 
-The `ai/` folder holds deeper docs that you can link from CLAUDE.md/AGENTS.md:
-- `ai/architecture.md` — detailed system design
-- `ai/coding-standards.md` — extended style guide
-- `ai/testing.md` — test patterns and coverage expectations
-- `ai/workflows.md` — common engineering workflows
+**How each tool picks it up:**
+- **Cursor** — invoke by referencing the skill in chat: "follow the create-feature skill". Cursor reads `ai/skills/create-feature/SKILL.md` via the `.cursor/skills` symlink.
+- **Claude Code / Codex** — tell the agent "follow the create-feature skill" and it reads `ai/skills/create-feature/SKILL.md` directly.
 
-### Cross-tool consistency
+---
 
-Everything lives in `ai/`. Tools read from there via bridges:
+### Workflows
 
-- Add a rule to `ai/rules/project.mdc` → Cursor picks it up immediately via `.cursor/rules` symlink, across all branches.
-- Add a skill to `ai/skills/my-skill/SKILL.md` → available in Cursor immediately.
-- Update `ai/workflows.md` → both `CLAUDE.md` and `AGENTS.md` already point there, so Claude Code and Codex both see the change.
+Workflows are docs in `ai/` describing processes — git flow, release steps, onboarding, etc. They are not CLAUDE.md/AGENTS.md content; those files just index them.
 
-You never copy-paste context between tools or branches. Edit once in `ai/`, everything updates.
+```
+ai/
+├── workflows.md     ← already exists (git branching, PR process)
+├── deployment.md    ← new: how to release
+└── onboarding.md    ← new: how to get started on the repo
+```
+
+When you add a new workflow doc, register it in three places so every tool knows it exists:
+
+**1. `ai/rules/project.mdc`** — add a bullet in the doc list:
+```markdown
+- `ai/deployment.md` — release process
+```
+
+**2. `CLAUDE.md`** — add a row to the index table:
+```markdown
+| Deployment process | `ai/deployment.md` |
+```
+
+**3. `AGENTS.md`** — add a bullet to the index list:
+```markdown
+- **Deployment process**: `ai/deployment.md`
+```
+
+---
+
+### The golden rule
+
+Edit in `ai/`. Update the index in `CLAUDE.md`, `AGENTS.md`, and `ai/rules/project.mdc` when you add a new file. That is all. All tools, all worktrees, all branches — one edit propagates everywhere.
 
 ---
 
