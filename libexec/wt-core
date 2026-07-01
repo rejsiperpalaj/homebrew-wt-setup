@@ -94,7 +94,8 @@ _wt_link_context() {
         printf '  %-9s %s\n' "OK" "$tgt"
         continue
       else
-        _wt_warn "$tgt → $cur (expected $src) — not replacing"
+        rm "$tgt" && ln -s "$src" "$tgt"
+        printf '  %-9s %s\n' "RELINKED" "$tgt"
         continue
       fi
     fi
@@ -106,6 +107,70 @@ _wt_link_context() {
 
     ln -s "$src" "$tgt" && printf '  %-9s %s\n' "LINKED" "$tgt"
   done
+}
+
+# Ensure context/.cursor bridge symlinks (rules, skills, mcp.json) into ai/ and mcp.json.
+_wt_wire_context_bridges() {
+  local context_dir="$1"
+  local names=("rules" "skills" "mcp.json")
+  local rel_srcs=("../ai/rules" "../ai/skills" "../mcp.json")
+  local req_paths=("ai/rules" "ai/skills" "mcp.json")
+  local i name rel_src req tgt cur
+
+  mkdir -p "${context_dir}/.cursor"
+
+  for i in 0 1 2; do
+    name="${names[$i]}"
+    rel_src="${rel_srcs[$i]}"
+    req="${req_paths[$i]}"
+    tgt="${context_dir}/.cursor/${name}"
+
+    if [[ ! -e "${context_dir}/${req}" ]]; then
+      _wt_warn "source missing: ${context_dir}/${req} — skipping bridge .cursor/${name}"
+      continue
+    fi
+
+    if [[ -L "$tgt" ]]; then
+      cur=$(readlink "$tgt")
+      if [[ "$cur" == "$rel_src" ]]; then
+        printf '  %-9s context/.cursor/%s\n' "OK" "$name"
+        continue
+      fi
+      rm "$tgt" && ln -s "$rel_src" "$tgt"
+      printf '  %-9s context/.cursor/%s\n' "RELINKED" "$name"
+    elif [[ -e "$tgt" ]]; then
+      _wt_warn "$tgt exists and is not a symlink — skipping (inspect manually)"
+    else
+      ln -s "$rel_src" "$tgt"
+      printf '  %-9s context/.cursor/%s\n' "LINKED" "$name"
+    fi
+  done
+}
+
+# Link repo-root .mcp.json → context/mcp.json (Claude Code + Codex).
+_wt_link_dot_mcp() {
+  local target_dir="$1"
+  local context_dir="$2"
+  local src="${context_dir}/mcp.json"
+  local tgt="${target_dir}/.mcp.json"
+  local cur
+
+  [[ -e "$src" ]] || return 0
+
+  if [[ -L "$tgt" ]]; then
+    cur=$(readlink "$tgt")
+    if [[ "$cur" == "$src" ]]; then
+      printf '  %-9s %s\n' "OK" "$tgt"
+      return 0
+    fi
+    rm "$tgt" && ln -s "$src" "$tgt"
+    printf '  %-9s %s\n' "RELINKED" "$tgt"
+  elif [[ -e "$tgt" ]]; then
+    _wt_warn "$tgt exists and is not a symlink — skipping (inspect manually)"
+  else
+    ln -s "$src" "$tgt"
+    printf '  %-9s %s\n' "LINKED" "$tgt"
+  fi
 }
 
 # Print status (OK / MISSING / CONFLICT / MISMATCH) for a single symlink target.
@@ -211,12 +276,9 @@ _wt_cmd_setup() {
   echo "→ Creating shared context..."
   _wt_seed_templates "$context_dir" "$project_name"
 
-  # Wire .cursor/rules and .cursor/skills as symlink bridges into ai/
+  # Wire .cursor/rules, .cursor/skills, and .cursor/mcp.json as symlink bridges
   # (cp -r dereferences symlinks, so these must be created programmatically)
-  mkdir -p "${context_dir}/.cursor"
-  ln -s ../ai/rules  "${context_dir}/.cursor/rules"
-  ln -s ../ai/skills "${context_dir}/.cursor/skills"
-  ln -s ../mcp.json  "${context_dir}/.cursor/mcp.json"
+  _wt_wire_context_bridges "$context_dir"
   # tools/ lives inside ai/ — no bridge needed, ai/ is already symlinked
   mkdir -p "${context_dir}/ai/tools"
 
@@ -246,6 +308,7 @@ _wt_cmd_setup() {
   # 7. Symlink AI context into the main repo
   echo "→ Linking AI context into main repo..."
   _wt_link_context "$main_repo" "$context_dir"
+  _wt_link_dot_mcp "$main_repo" "$context_dir"
   echo ""
 
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -332,30 +395,9 @@ _wt_cmd_branch() {
 
   echo ""
   echo "→ Linking AI context..."
-  # Link missing items and silently repoint any stale symlinks (common on --checkout
-  # of a branch that already has a worktree directory with old symlinks).
-  local items=(".cursor" "ai" "CLAUDE.md" "AGENTS.md" "mcp.json")
-  local item
-  for item in "${items[@]}"; do
-    local src="${context_dir}/${item}"
-    local tgt="${wt_path}/${item}"
-    [[ ! -e "$src" ]] && continue
-    if [[ -L "$tgt" ]]; then
-      local cur
-      cur=$(readlink "$tgt")
-      if [[ "$cur" != "$src" ]]; then
-        rm "$tgt" && ln -s "$src" "$tgt"
-        printf '  %-9s %s\n' "RELINKED" "$tgt"
-      else
-        printf '  %-9s %s\n' "OK" "$tgt"
-      fi
-    elif [[ ! -e "$tgt" ]]; then
-      ln -s "$src" "$tgt"
-      printf '  %-9s %s\n' "LINKED" "$tgt"
-    else
-      _wt_warn "$tgt exists and is not a symlink — delete it manually, then run wt --ai-fix"
-    fi
-  done
+  _wt_wire_context_bridges "$context_dir"
+  _wt_link_context "$wt_path" "$context_dir"
+  _wt_link_dot_mcp "$wt_path" "$context_dir"
   echo ""
   echo "Worktree ready:"
   echo "  Path:   $wt_path"
@@ -406,6 +448,7 @@ _wt_cmd_ai_status() {
   for item in "${items[@]}"; do
     _wt_check_one "${main_repo}/${item}" "${context_dir}/${item}"
   done
+  _wt_check_one "${main_repo}/.mcp.json" "${context_dir}/mcp.json"
   echo ""
 
   echo "Worktrees:"
@@ -417,12 +460,17 @@ _wt_cmd_ai_status() {
     for item in "${items[@]}"; do
       _wt_check_one "${wt_path}/${item}" "${context_dir}/${item}"
     done
+    _wt_check_one "${wt_path}/.mcp.json" "${context_dir}/mcp.json"
   done < <(git -C "$main_repo" worktree list --porcelain | awk '/^worktree / {print substr($0, 10)}')
 
   if [[ "$found" == "0" ]]; then
     echo "  (none)"
   fi
   echo ""
+  echo "context/.cursor bridges:"
+  _wt_check_one "${context_dir}/.cursor/rules" "../ai/rules"
+  _wt_check_one "${context_dir}/.cursor/skills" "../ai/skills"
+  _wt_check_one "${context_dir}/.cursor/mcp.json" "../mcp.json"
   echo ""
   echo "context/ai/ subdirectories:"
   local ai_subdirs=("rules" "skills" "tools")
@@ -447,8 +495,23 @@ _wt_cmd_ai_fix() {
   local main_repo wt_root project_name worktrees_root context_dir
   IFS='|' read -r main_repo wt_root project_name worktrees_root context_dir <<< "$project_info"
 
-  echo "Linking AI context in: $main_repo"
+  echo "→ Wiring context bridges..."
+  _wt_wire_context_bridges "$context_dir"
+  echo ""
+
+  echo "→ Linking AI context in: $main_repo"
   _wt_link_context "$main_repo" "$context_dir"
+  _wt_link_dot_mcp "$main_repo" "$context_dir"
+  echo ""
+
+  local wt_path
+  while IFS= read -r wt_path; do
+    [[ "$wt_path" == "$main_repo" ]] && continue
+    echo "→ Linking AI context in: $wt_path"
+    _wt_link_context "$wt_path" "$context_dir"
+    _wt_link_dot_mcp "$wt_path" "$context_dir"
+    echo ""
+  done < <(git -C "$main_repo" worktree list --porcelain | awk '/^worktree / {print substr($0, 10)}')
 }
 
 # --------------------------------------------------------------
@@ -622,7 +685,7 @@ MANAGEMENT
 
 AI CONTEXT
   wt --ai-status                  Symlink health check across all worktrees
-  wt --ai-fix                     Re-link AI context in the current directory
+  wt --ai-fix                     Re-link AI context in all checkouts (bridges + .mcp.json)
   wt --ai-doctor                  Scan context/ai/ for portability drift
                                   (.cursor/* references, mdc: protocol, absolute host paths)
 

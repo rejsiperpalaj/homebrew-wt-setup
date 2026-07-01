@@ -44,7 +44,8 @@ This creates:
     └── context/                   ← shared AI docs (never committed)
         ├── .cursor/
         │   ├── rules  → ../ai/rules   (symlink — Cursor bridge)
-        │   └── skills → ../ai/skills  (symlink — Cursor bridge)
+        │   ├── skills → ../ai/skills  (symlink — Cursor bridge)
+        │   └── mcp.json → ../mcp.json (symlink — Cursor MCP bridge)
         ├── ai/                    ← single source of truth
         │   ├── rules/             ← rules (.mdc files) — loaded by all 3 tools
         │   │   ├── project.mdc
@@ -204,13 +205,13 @@ Run from inside the project or any of its worktrees.
 | Command | Description |
 |---|---|
 | `wt --ai-status` | Symlink health check across all worktrees |
-| `wt --ai-fix` | Re-link AI context in the current directory |
+| `wt --ai-fix` | Re-link AI context in all checkouts (bridges, `.mcp.json`, top-level symlinks) |
 | `wt --ai-doctor` | Scan `context/ai/` for portability drift (see below) |
 | `wt --help` | Show help |
 
 #### `wt --ai-doctor` — content drift check
 
-`--ai-status` verifies the *symlinks* are healthy. `--ai-doctor` verifies the *content inside* `context/ai/rules/`, `context/ai/skills/`, and `context/ai/tools/` uses citations that resolve for all three AI tools (Cursor, Claude Code, Codex) — not just Cursor.
+`--ai-status` verifies the *symlinks* are healthy (including `context/.cursor` bridges and `.mcp.json`). `--ai-doctor` verifies the *content inside* `context/ai/rules/`, `context/ai/skills/`, and `context/ai/tools/` uses citations that resolve for all three AI tools (Cursor, Claude Code, Codex) — not just Cursor.
 
 It flags three classes of drift:
 
@@ -455,7 +456,7 @@ Nothing to migrate. Fill in `context/ai/rules/project.mdc` with your project ove
 ### After any scenario
 
 ```sh
-wt --ai-fix      # re-link in the current checkout
+wt --ai-fix      # re-link all checkouts (bridges + .mcp.json)
 wt --ai-status   # verify all symlinks are OK
 ```
 
