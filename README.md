@@ -160,6 +160,104 @@ This handles:
 
 ---
 
+## AI tools — why CLAUDE.md, AGENTS.md, and .cursor
+
+Different AI tools read different files as their source of project context. `wt` creates all of them as symlinks into the same `context/` directory, so you write your rules, skills, and workflows **once** and every tool picks them up automatically.
+
+| File / folder | Read by | Purpose |
+|---|---|---|
+| `CLAUDE.md` | Claude Code (Anthropic CLI) | Project context, conventions, instructions Claude reads at session start |
+| `AGENTS.md` | OpenAI Codex, GPT-based agents | Same purpose for OpenAI-family agents |
+| `.cursor/rules/` | Cursor IDE | `.mdc` rule files Cursor applies during coding sessions |
+| `.cursor/skills/` | Cursor IDE | Skills (reusable task templates) the Cursor agent can invoke |
+| `ai/` | Any tool, by reference | Richer docs — architecture, coding standards, testing, workflows — linked from CLAUDE.md / AGENTS.md |
+
+Because all of these are symlinks to `context/`, editing one file inside any worktree updates every tool's view simultaneously.
+
+---
+
+## How to set up skills, rules, and workflows
+
+### Rules (Cursor)
+
+Rules go in `context/.cursor/rules/` as `.mdc` files. Each rule is always-on or scoped to specific files.
+
+```
+context/
+└── .cursor/
+    └── rules/
+        ├── project.mdc          ← repo-wide conventions (architecture, patterns, do-nots)
+        ├── testing.mdc          ← test standards
+        └── api-contracts.mdc   ← API / DTO rules
+```
+
+A good `project.mdc` covers:
+- Stack and architecture overview (what layers exist, how they communicate)
+- Naming conventions
+- What NOT to do (anti-patterns specific to this codebase)
+- Where shared utilities live so the agent reuses them
+
+### Skills (Cursor)
+
+Skills go in `context/.cursor/skills/` as folders with a `SKILL.md` inside. Each skill is a reusable, invocable task the agent can follow step by step.
+
+```
+context/
+└── .cursor/
+    └── skills/
+        ├── create-feature/
+        │   └── SKILL.md   ← step-by-step: ViewModel + Service + tests
+        ├── triage-pr/
+        │   └── SKILL.md
+        └── run-app/
+            └── SKILL.md
+```
+
+### Workflows (CLAUDE.md / AGENTS.md)
+
+`CLAUDE.md` and `AGENTS.md` contain the same information, formatted for their respective tools. A good structure:
+
+```markdown
+# Project: <name>
+
+## What this is
+One paragraph — what the repo does, its purpose.
+
+## Architecture
+How the code is structured: layers, packages, key patterns.
+
+## Key conventions
+- Language/framework version
+- Code style rules that matter
+- How to name things
+
+## Common tasks
+- How to run locally
+- How to run tests
+- How to add a feature (brief — link to skills for detail)
+
+## Do not
+- Specific things the agent should never do in this repo
+```
+
+The `ai/` folder holds deeper docs that you can link from CLAUDE.md/AGENTS.md:
+- `ai/architecture.md` — detailed system design
+- `ai/coding-standards.md` — extended style guide
+- `ai/testing.md` — test patterns and coverage expectations
+- `ai/workflows.md` — common engineering workflows
+
+### Cross-tool consistency
+
+Since `CLAUDE.md`, `AGENTS.md`, `.cursor/rules/`, and `ai/` all live in `context/` and are symlinked into every worktree:
+
+- A rule you add to `.cursor/rules/project.mdc` is available in Cursor immediately across all branches.
+- An update to `CLAUDE.md` is picked up by Claude Code in every worktree the next time it opens.
+- Adding a new workflow to `ai/workflows.md` and referencing it from both `CLAUDE.md` and `AGENTS.md` keeps all tools aligned.
+
+You never copy-paste context between tools or branches.
+
+---
+
 ## Team best practice — shared AI context repo
 
 Instead of each developer maintaining their own `context/` templates independently, keep your team's AI skills, rules, and workflows in a dedicated repo and pull them into `context/`.
