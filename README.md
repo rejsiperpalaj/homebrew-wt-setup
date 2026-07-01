@@ -120,9 +120,7 @@ Run from inside the project or any of its worktrees.
 | Command | Description |
 |---|---|
 | `wt --ai-status` | Symlink health check across all worktrees |
-| `wt --ai-fix` | Re-link missing AI context in the current directory |
-| `wt --ai-fix --resolve` | Fix CONFLICT and MISMATCH symlinks (deletes existing files, links to `context/`) |
-| `wt --ai-absorb <src> [<dest>]` | Absorb a repo-root-relative path into `context/<dest>` and replace with a symlink |
+| `wt --ai-fix` | Re-link AI context in the current directory |
 | `wt --help` | Show help |
 
 ---
@@ -138,42 +136,34 @@ wt --ai-status    # works — no need to cd into your-repo/ first
 
 ---
 
-## Migrating an existing project
+## Migrating — coordinate with your team
 
-If your project already has AI docs committed at a custom path, absorb them into `context/ai/` with a single command.
+`wt` is designed to keep AI context **outside** the project repo entirely. If your project already has `ai/`, `.cursor/`, `CLAUDE.md`, or `AGENTS.md` committed, the right move is to remove them from the repo — coordinate with your team so nobody adds them back.
 
-**Always pass `ai` as the second argument** — that is the destination inside `context/`, so everything lands at `context/ai/` where all tools expect it:
+**Steps (done once, by one person — then the team pulls):**
 
-```sh
-wt --ai-absorb <src> ai
-#                    ^^^ always "ai" — lands at context/ai/
-```
+1. Run `wt setup <git-url>` to bootstrap the workspace (if not done yet).
 
-Common examples:
+2. Manually copy any existing AI content from the repo into `context/ai/`:
 
-```sh
-wt --ai-absorb .ai ai                   # .ai              → context/ai/
-wt --ai-absorb docs/ai ai               # docs/ai          → context/ai/
-wt --ai-absorb documentation/ai ai      # documentation/ai → context/ai/
-```
+   ```sh
+   cp -r ai/rules/ wt_your-repo/context/ai/rules/
+   cp -r ai/skills/ wt_your-repo/context/ai/skills/
+   # copy any other ai/*.md files you want to keep
+   ```
 
-`wt --ai-absorb` copies the contents into `context/ai/`, deletes the original, and links `ai/`, `.cursor/`, `CLAUDE.md`, and `AGENTS.md` into the repo root at their canonical paths. `CLAUDE.md` and `AGENTS.md` come from the `context/` templates which already reference `ai/` — nothing to update manually. Commit once to share the migration with your team:
+3. Delete the files from git tracking:
 
-> **Where to put your content:** put architecture, testing, and workflow context in `ai/rules/` as `.mdc` files — all three tools load them automatically. If you prefer long-form `ai/*.md` docs, add a reference to each in `ai/rules/project.mdc` so Cursor picks them up too.
+   ```sh
+   git rm -r ai/ .cursor/ CLAUDE.md AGENTS.md   # only the files that are committed
+   git commit -m "chore: remove AI context from repo — managed via wt context/"
+   ```
 
-```sh
-git add -A && git commit -m "chore: absorb docs/ai into shared wt context"
-```
+4. Everyone else on the team: `git pull`, then run `wt --ai-fix` once to re-create the symlinks in their local checkout.
 
-If the project has files like `CLAUDE.md` or `AGENTS.md` already committed, run:
+After this, AI files are never committed to the project repo again. Each developer's `context/` is local-only, and all worktrees stay in sync automatically.
 
-```sh
-wt --ai-fix --resolve
-```
-
-This handles:
-- **CONFLICT** — real file exists: file is deleted, symlink to `context/` created in its place
-- **MISMATCH** — symlink points to wrong target: repointed to the correct `context/` path
+> **Where to put content going forward:** put architecture, testing, and workflow context in `ai/rules/` as `.mdc` files — all three tools load them automatically. If you prefer long-form `ai/*.md` docs, add a reference to each in `ai/rules/project.mdc` so Cursor picks them up too.
 
 ---
 
@@ -235,6 +225,50 @@ flowchart LR
 **The safest approach: put everything in `ai/rules/`.** Architecture notes, testing conventions, workflow steps — if they live in a `.mdc` rule, all three tools load them automatically with no indirection needed.
 
 Edit in `ai/`. One place, all tools, all worktrees, all branches.
+
+---
+
+## Editing CLAUDE.md and AGENTS.md safely
+
+`CLAUDE.md` and `AGENTS.md` are the **orchestration layer** — the first thing Claude Code and Codex read when they start in the repo. They work as a thin index pointing each tool at `ai/rules/`, `ai/skills/`, and the default `ai/*.md` docs. Editing them incorrectly will silently break tool access to everything inside `ai/`.
+
+### What to leave alone
+
+`wt setup` generates both files with an index section pointing at `ai/rules/` and `ai/skills/`. Do not remove or rename those entries. They are the bridge — without them, Claude and Codex will not load your rules or skills.
+
+Do not change the paths unless you also move the actual files inside `context/ai/`.
+
+### What you can safely add
+
+- A short project description at the top (name, tech stack, one-paragraph summary).
+- Links to external resources — Confluence, Notion, runbook URLs.
+- Project-specific high-level instructions (e.g. "This is an iOS project. All code is Swift.").
+
+### The pattern
+
+```
+CLAUDE.md / AGENTS.md
+  = short project header   ← yours to edit freely
+  + index pointing at ai/  ← do not touch
+```
+
+Everything inside `ai/rules/` and `ai/skills/` is yours to edit freely — that is where your conventions, do-nots, and task templates live. The bridge files are thin entry points, not the source of truth.
+
+### Rules vs bridge files
+
+A common mistake is adding conventions directly to `CLAUDE.md` instead of a rule. Avoid this:
+
+```
+# ❌ Wrong — put this in ai/rules/coding-standards.mdc instead
+Do not use force-unwrapping in Swift.
+```
+
+```
+# ✅ Right — CLAUDE.md stays thin
+| Coding standards | ai/rules/coding-standards.mdc |
+```
+
+Rules in `ai/rules/` reach all three tools (Cursor, Claude, Codex) automatically. Content added only to `CLAUDE.md` is invisible to Cursor and Codex.
 
 ---
 
@@ -361,7 +395,9 @@ Edit in `ai/`. When you add a new `ai/*.md` doc, add one reference line to `ai/r
 
 ## Team best practice — shared AI context repo
 
-Instead of each developer maintaining their own `context/` templates independently, keep your team's AI skills, rules, and workflows in a dedicated repo and pull them into `context/`.
+**Recommended:** keep your team's AI skills, rules, and workflows in a dedicated git repo and clone it as `context/`. This is the intended production setup — it gives you versioned, reviewed AI context that every team member shares, with personal additions that never leave your machine.
+
+Instead of each developer maintaining their own `context/` templates independently, a shared repo means one place to add a new rule, and everyone gets it on the next `git pull`.
 
 **1. Create a shared team repo** (once, by anyone on the team):
 
